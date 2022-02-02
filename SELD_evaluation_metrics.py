@@ -14,9 +14,9 @@
 import numpy as np
 eps = np.finfo(np.float).eps
 from scipy.optimize import linear_sum_assignment
-
+from IPython import embed
 class SELDMetrics(object):
-    def __init__(self, doa_threshold=20, nb_classes=11):
+    def __init__(self, doa_threshold=20, nb_classes=11, average='macro'):
         '''
             This class implements both the class-sensitive localization and location-sensitive detection metrics.
             Additionally, based on the user input, the corresponding averaging is performed within the segment.
@@ -27,23 +27,22 @@ class SELDMetrics(object):
         self._nb_classes = nb_classes
 
         # Variables for Location-senstive detection performance
-        self._TP = 0
-        self._FP = 0
-        self._FN = 0
+        self._TP = np.zeros(self._nb_classes)
+        self._FP = np.zeros(self._nb_classes)
+        self._FN = np.zeros(self._nb_classes)
 
-        self._S = 0
-        self._D = 0
-        self._I = 0
-        self._Nref = 0
+        self._Nref = np.zeros(self._nb_classes)
 
         self._spatial_T = doa_threshold
 
         # Variables for Class-sensitive localization performance
-        self._total_DE = 0
+        self._total_DE = np.zeros(self._nb_classes)
 
-        self._DE_TP = 0
-        self._DE_FP = 0
-        self._DE_FN = 0
+        self._DE_TP = np.zeros(self._nb_classes)
+        self._DE_FP = np.zeros(self._nb_classes)
+        self._DE_FN = np.zeros(self._nb_classes)
+
+        self._average = average
 
     def compute_seld_scores(self):
         '''
@@ -51,14 +50,27 @@ class SELDMetrics(object):
 
         :return: returns both location-sensitive detection scores and class-sensitive localization scores
         '''
+        S = np.minimum(self._FN, self._FP)
+        D = np.maximum(0, self._FN-self._FP)
+        I = np.maximum(0, self._FP- self._FN) 
+        if self._average == 'micro':
+            # Location-sensitive detection performance
+            ER = (S.sum() + D.sum() + I.sum()) / float(self._Nref.sum() + eps)
+            F = self._TP.sum() / (eps + self._TP.sum() + 0.5 * (self._FP.sum() + self._FN.sum()))
 
-        # Location-sensitive detection performance
-        ER = (self._S + self._D + self._I) / float(self._Nref + eps)
-        F = self._TP / (eps + self._TP + 0.5 * (self._FP + self._FN))
+            # Class-sensitive localization performance
+            LE = self._total_DE.sum() / float(self._DE_TP.sum() + eps)
+            LR = self._DE_TP.sum() / (eps + self._DE_TP.sum() + self._DE_FN.sum())
 
-        # Class-sensitive localization performance
-        LE = self._total_DE / float(self._DE_TP + eps) if self._DE_TP else 180 # When the total number of prediction is zero
-        LR = self._DE_TP / (eps + self._DE_TP + self._DE_FN)
+        elif self._average=='macro':
+            # Location-sensitive detection performance
+            ER = (S + D + I) / (self._Nref + eps)
+            F = self._TP / (eps + self._TP + 0.5 * (self._FP + self._FN))
+
+            # Class-sensitive localization performance
+            LE = self._total_DE / (self._DE_TP + eps) 
+            LR = self._DE_TP / (eps + self._DE_TP + self._DE_FN)
+            ER, F, LE, LR = ER.mean(), F.mean(), LE.mean(), LR.mean()
         return ER, F, LE, LR
 
     def update_seld_scores(self, pred, gt):
@@ -72,12 +84,11 @@ class SELDMetrics(object):
         :param gt: dictionary containing class-wise groundtruth for each N-seconds segment block
         '''
         for block_cnt in range(len(gt.keys())):
-            loc_FN, loc_FP = 0, 0
             for class_cnt in range(self._nb_classes):
                 # Counting the number of referece tracks for each class in the segment
                 nb_gt_doas = max([len(val) for val in gt[block_cnt][class_cnt][0][1]]) if class_cnt in gt[block_cnt] else None
                 if nb_gt_doas is not None:
-                    self._Nref += nb_gt_doas
+                    self._Nref[class_cnt] += nb_gt_doas
 
                 if class_cnt in gt[block_cnt] and class_cnt in pred[block_cnt]:
                     # True positives or False positive case
@@ -118,9 +129,8 @@ class SELDMetrics(object):
                     # Update evaluation metrics based on the distance between ref-pred tracks
                     if len(matched_track_dist) == 0:
                         # if no tracks are found. This occurs when the predicted DOAs are not aligned frame-wise to the reference DOAs
-                        loc_FN += 1
-                        self._FN += 1
-                        self._DE_FN += 1
+                        self._FN[class_cnt] += 1
+                        self._DE_FN[class_cnt] += 1
                     else:
                         # for the associated ref-pred tracks compute the metrics
                         for track_id in matched_track_dist:
@@ -129,31 +139,23 @@ class SELDMetrics(object):
                             avg_spatial_dist = total_spatial_dist / total_framewise_matching_doa
 
                             # Class-sensitive localization performance
-                            self._total_DE += avg_spatial_dist
-                            self._DE_TP += 1
+                            self._total_DE[class_cnt] += avg_spatial_dist
+                            self._DE_TP[class_cnt] += 1
 
                             # Location-sensitive detection performance
                             if avg_spatial_dist <= self._spatial_T:
-                                self._TP += 1
+                                self._TP[class_cnt] += 1
                             else:
-                                loc_FP += 1
-                                self._FP += 1
+                                self._FP[class_cnt] += 1
                 elif class_cnt in gt[block_cnt] and class_cnt not in pred[block_cnt]:
                     # False negative
-                    loc_FN += 1
-                    self._FN += 1
-                    self._DE_FN += 1
+                    self._FN[class_cnt] += 1
+                    self._DE_FN[class_cnt] += 1
                 elif class_cnt not in gt[block_cnt] and class_cnt in pred[block_cnt]:
                     # False positive
-                    loc_FP += 1
-                    self._FP += 1
-                    self._DE_FP += 1
-
-            self._S += np.minimum(loc_FP, loc_FN)
-            self._D += np.maximum(0, loc_FN - loc_FP)
-            self._I += np.maximum(0, loc_FP - loc_FN)
+                    self._FP[class_cnt] += 1
+                    self._DE_FP[class_cnt] += 1
         return
-
 
 def distance_between_spherical_coordinates_rad(az1, ele1, az2, ele2):
     """

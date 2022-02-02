@@ -53,6 +53,7 @@ def get_params(argv='1'):
         lr=1e-3,
 
         # METRIC
+        average = 'micro',        # Supports 'micro': sample-wise average and 'macro': class-wise average
         lad_doa_thresh=20
     )
 

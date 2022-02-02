@@ -27,6 +27,7 @@ class ComputeSELDResults(object):
                 self._ref_labels[ref_file] = self._feat_cls.segment_labels(gt_dict, self._feat_cls.get_nb_frames())
 
         self._nb_ref_files = len(self._ref_labels)
+        self._average = params['average']
 
     @staticmethod
     def get_nb_files(file_list, tag='all'):
@@ -59,7 +60,7 @@ class ComputeSELDResults(object):
     def get_SELD_Results(self, pred_files_path):
         # collect predicted files info
         pred_files = os.listdir(pred_files_path)
-        eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh)
+        eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
         for pred_cnt, pred_file in enumerate(pred_files):
             # Load predicted output format file
             pred_dict = self._feat_cls.load_output_format_file(os.path.join(pred_files_path, pred_file))
@@ -103,7 +104,7 @@ class ComputeSELDResults(object):
             # Calculate scores across files for a given score_type
             for split_key in np.sort(list(split_cnt_dict)):
                 # Load evaluation metric class
-                eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh)
+                eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
                 for pred_cnt, pred_file in enumerate(split_cnt_dict[split_key]):
                     # Load predicted output format file
                     pred_dict = self._feat_cls.load_output_format_file(os.path.join(pred_output_format_files, pred_file))
@@ -128,10 +129,10 @@ def reshape_3Dto2D(A):
 
 
 if __name__ == "__main__":
-    pred_output_format_files = 'results/2_mic_dev_test' # Path of the DCASEoutput format files
+    pred_output_format_files = 'results/1_foa_dev_test' # Path of the DCASEoutput format files
 
     # Compute just the DCASE 2021 final results 
-    score_obj = ComputeSELDResults(parameter.get_params())
+    score_obj = ComputeSELDResults(parameters.get_params())
     ER, F, LE, LR, seld_scr = score_obj.get_SELD_Results(pred_output_format_files)
     print('SELD score (early stopping metric): {:0.2f}'.format(seld_scr))
     print('SED metrics: Error rate: {:0.2f}, F-score:{:0.1f}'.format(ER, 100*F))

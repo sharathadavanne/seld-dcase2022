@@ -173,9 +173,9 @@ def main(argv):
         # Collect i/o data size and load model configuration
         data_in, data_out = data_gen_train.get_data_sizes()
         model = seldnet_model.CRNN(data_in, data_out, params).to(device)
-        #model.load_state_dict(torch.load("models/11_7862293_foa_dev_split6_model.h5", map_location='cpu'))
+       # model.load_state_dict(torch.load("models/1_1_foa_dev_split6_model.h5", map_location='cpu'))
 
-        print('---------------- DOA-net -------------------')
+        print('---------------- SELD-net -------------------')
         print('FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out))
         print('MODEL:\n\tdropout_rate: {}\n\tCNN: nb_cnn_filt: {}, f_pool_size{}, t_pool_size{}\n\trnn_size: {}, fnn_size: {}\n'.format(
             params['dropout_rate'], params['nb_cnn2d_filt'], params['f_pool_size'], params['t_pool_size'], params['rnn_size'],
