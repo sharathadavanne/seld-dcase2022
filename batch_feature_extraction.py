@@ -12,6 +12,6 @@ dev_feat_cls = cls_feature_class.FeatureClass(params)
 dev_feat_cls.extract_all_feature()
 dev_feat_cls.preprocess_features()
 
-# # Extract labels in regression mode
+# # Extract labels
 dev_feat_cls.extract_all_labels()
 

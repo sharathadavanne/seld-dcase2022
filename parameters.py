@@ -33,9 +33,14 @@ def get_params(argv='1'):
         max_audio_len_s=60,
         nb_mel_bins=64,
 
+        # MODEL TYPE
+        multi_accdoa=True,  # False - Single-ACCDOA or True - Multi-ACCDOA
+        thresh_unify=15,  # threshold of unification for inference in degree
+
         # DNN MODEL PARAMETERS
         label_sequence_length=50,    # Feature sequence length
         batch_size=256,              # Batch size
+        # batch_size=128,              # Batch size
         dropout_rate=0.05,             # Dropout rate, constant for all layers
         nb_cnn2d_filt=64,           # Number of CNN nodes, constant for each layer
         f_pool_size=[4, 4, 2],      # CNN frequency pooling, length of list = number of CNN layers, list value = pooling per layer
@@ -60,6 +65,15 @@ def get_params(argv='1'):
     # ########### User defined parameters ##############
     if argv == '1':
         print("USING DEFAULT PARAMETERS\n")
+
+    elif argv == '2':
+        print("USING DEFAULT PARAMETERS WITH MULTI-ACCDOA\n")
+        params['multi_accdoa'] = True
+
+    elif argv == '888':
+        print("QUICK TEST MODE FOR MULTI-ACCDOA\n")
+        params['quick_test'] = True
+        params['multi_accdoa'] = True
 
     elif argv == '999':
         print("QUICK TEST MODE\n")

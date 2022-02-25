@@ -24,6 +24,7 @@ class DataGenerator(object):
         self._feat_cls = cls_feature_class.FeatureClass(params=params, is_eval=self._is_eval)
         self._label_dir = self._feat_cls.get_label_dir()
         self._feat_dir = self._feat_cls.get_normalized_feat_dir()
+        self._multi_accdoa = params['multi_accdoa']
 
         self._filenames_list = list()
         self._nb_frames_file = 0     # Using a fixed number of frames in feat files. Updated in _get_label_filenames_sizes()
@@ -71,7 +72,10 @@ class DataGenerator(object):
         if self._is_eval:
             label_shape = None
         else:
-            label_shape = (self._batch_size, self._label_seq_len, self._nb_classes*3)
+            if self._multi_accdoa is True:
+                label_shape = (self._batch_size, self._label_seq_len, self._nb_classes*3*3)
+            else:
+                label_shape = (self._batch_size, self._label_seq_len, self._nb_classes*3)
         return feat_shape, label_shape
 
     def get_total_batches_in_data(self):
@@ -88,7 +92,12 @@ class DataGenerator(object):
 
         if not self._is_eval:
             temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[0]))
-            self._label_len = temp_label.shape[-1]
+            if self._multi_accdoa is True:
+                self._num_track_dummy = temp_label.shape[-3]
+                self._num_axis = temp_label.shape[-2]
+                self._num_class = temp_label.shape[-1]
+            else:
+                self._label_len = temp_label.shape[-1]
             self._doa_len = 3 # Cartesian
 
         if self._per_file:
@@ -173,21 +182,32 @@ class DataGenerator(object):
 
                 # Read one batch size from the circular buffer
                 feat = np.zeros((self._feature_batch_seq_len, self._nb_mel_bins * self._nb_ch))
-                label = np.zeros((self._label_batch_seq_len, self._label_len))
                 for j in range(self._feature_batch_seq_len):
                     feat[j, :] = self._circ_buf_feat.popleft()
-                for j in range(self._label_batch_seq_len):
-                    label[j, :] = self._circ_buf_label.popleft()
                 feat = np.reshape(feat, (self._feature_batch_seq_len, self._nb_ch, self._nb_mel_bins))
+
+                if self._multi_accdoa is True:
+                    label = np.zeros((self._label_batch_seq_len, self._num_track_dummy, self._num_axis, self._num_class))
+                    for j in range(self._label_batch_seq_len):
+                        label[j, :, :, :] = self._circ_buf_label.popleft()
+                else:
+                    label = np.zeros((self._label_batch_seq_len, self._label_len))
+                    for j in range(self._label_batch_seq_len):
+                        label[j, :] = self._circ_buf_label.popleft()
 
                 # Split to sequences
                 feat = self._split_in_seqs(feat, self._feature_seq_len)
                 feat = np.transpose(feat, (0, 2, 1, 3))
+
                 label = self._split_in_seqs(label, self._label_seq_len)
 #                label = [label[:, :, :self._max_overlap*self._nb_classes*3], label[:, :, self._max_overlap*self._nb_classes*3:-self._max_overlap*self._nb_classes], label[:, :, -self._max_overlap*self._nb_classes:]]
-                mask = label[:, :, :self._nb_classes]
-                mask = np.tile(mask, 3)
-                label = mask * label[:, :, self._nb_classes:]
+                if self._multi_accdoa is True:
+                    pass
+                else:
+                    mask = label[:, :, :self._nb_classes]
+                    mask = np.tile(mask, 3)
+                    label = mask * label[:, :, self._nb_classes:]
+
                 yield feat, label
 
     def _split_in_seqs(self, data, _seq_len):
@@ -203,6 +223,10 @@ class DataGenerator(object):
             if data.shape[0] % _seq_len:
                 data = data[:-(data.shape[0] % _seq_len), :, :]
             data = data.reshape((data.shape[0] // _seq_len, _seq_len, data.shape[1], data.shape[2]))
+        elif len(data.shape) == 4:  # for multi-ACCDOA with ADPIT
+            if data.shape[0] % _seq_len:
+                data = data[:-(data.shape[0] % _seq_len), :, :, :]
+            data = data.reshape((data.shape[0] // _seq_len, _seq_len, data.shape[1], data.shape[2], data.shape[3]))
         else:
             print('ERROR: Unknown data dimensions: {}'.format(data.shape))
             exit()

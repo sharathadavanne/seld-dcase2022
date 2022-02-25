@@ -61,6 +61,8 @@ class FeatureClass:
         self._eps = 1e-8
         self._nb_channels = 4
 
+        self._multi_accdoa = params['multi_accdoa']
+
         # Sound event classes dictionary
         self._nb_unique_classes = params['unique_classes']
         self._audio_max_len_samples = params['max_audio_len_s'] * self._fs  # TODO: Fix the audio synthesis code to always generate 60s of
@@ -164,6 +166,112 @@ class FeatureClass:
         label_mat = np.concatenate((se_label, x_label, y_label, z_label), axis=1)
         return label_mat
 
+    # OUTPUT LABELS
+    def get_adpit_labels_for_file(self, _desc_file):
+        """
+        Reads description file and returns classification based SED labels and regression based DOA labels
+        for multi-ACCDOA with Auxiliary Duplicating Permutation Invariant Training (ADPIT)
+
+        :param _desc_file: metadata description file
+        :return: label_mat: of dimension [nb_frames, 6, 4(=act+XYZ), max_classes]
+        """
+
+        se_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))  # [nb_frames, 6, max_classes]
+        x_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
+        y_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
+        z_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
+
+        for frame_ind, active_event_list in _desc_file.items():
+            if frame_ind < self._max_label_frames:
+                active_event_list.sort(key=lambda x: x[0])  # sort for ov from the same class
+                active_event_list_per_class = []
+                for i, active_event in enumerate(active_event_list):
+                    active_event_list_per_class.append(active_event)
+                    if i == len(active_event_list) - 1:  # if the last
+                        if len(active_event_list_per_class) == 1:  # if no ov from the same class
+                            # a0----
+                            active_event_a0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 0, active_event_a0[0]] = 1
+                            x_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[2]
+                            y_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[3]
+                            z_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[4]
+                        elif len(active_event_list_per_class) == 2:  # if ov with 2 sources from the same class
+                            # --b0--
+                            active_event_b0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 1, active_event_b0[0]] = 1
+                            x_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[2]
+                            y_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[3]
+                            z_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[4]
+                            # --b1--
+                            active_event_b1 = active_event_list_per_class[1]
+                            se_label[frame_ind, 2, active_event_b1[0]] = 1
+                            x_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[2]
+                            y_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[3]
+                            z_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[4]
+                        else:  # if ov with more than 2 sources from the same class
+                            # ----c0
+                            active_event_c0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 3, active_event_c0[0]] = 1
+                            x_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[2]
+                            y_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[3]
+                            z_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[4]
+                            # ----c1
+                            active_event_c1 = active_event_list_per_class[1]
+                            se_label[frame_ind, 4, active_event_c1[0]] = 1
+                            x_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[2]
+                            y_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[3]
+                            z_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[4]
+                            # ----c2
+                            active_event_c2 = active_event_list_per_class[1]
+                            se_label[frame_ind, 5, active_event_c2[0]] = 1
+                            x_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[2]
+                            y_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[3]
+                            z_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[4]
+
+                    elif active_event[0] != active_event_list[i + 1][0]:  # if the next is not the same class
+                        if len(active_event_list_per_class) == 1:  # if no ov from the same class
+                            # a0----
+                            active_event_a0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 0, active_event_a0[0]] = 1
+                            x_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[2]
+                            y_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[3]
+                            z_label[frame_ind, 0, active_event_a0[0]] = active_event_a0[4]
+                        elif len(active_event_list_per_class) == 2:  # if ov with 2 sources from the same class
+                            # --b0--
+                            active_event_b0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 1, active_event_b0[0]] = 1
+                            x_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[2]
+                            y_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[3]
+                            z_label[frame_ind, 1, active_event_b0[0]] = active_event_b0[4]
+                            # --b1--
+                            active_event_b1 = active_event_list_per_class[1]
+                            se_label[frame_ind, 2, active_event_b1[0]] = 1
+                            x_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[2]
+                            y_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[3]
+                            z_label[frame_ind, 2, active_event_b1[0]] = active_event_b1[4]
+                        else:  # if ov with more than 2 sources from the same class
+                            # ----c0
+                            active_event_c0 = active_event_list_per_class[0]
+                            se_label[frame_ind, 3, active_event_c0[0]] = 1
+                            x_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[2]
+                            y_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[3]
+                            z_label[frame_ind, 3, active_event_c0[0]] = active_event_c0[4]
+                            # ----c1
+                            active_event_c1 = active_event_list_per_class[1]
+                            se_label[frame_ind, 4, active_event_c1[0]] = 1
+                            x_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[2]
+                            y_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[3]
+                            z_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[4]
+                            # ----c2
+                            active_event_c2 = active_event_list_per_class[1]
+                            se_label[frame_ind, 5, active_event_c2[0]] = 1
+                            x_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[2]
+                            y_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[3]
+                            z_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[4]
+                        active_event_list_per_class = []
+
+        label_mat = np.stack((se_label, x_label, y_label, z_label), axis=2)  # [nb_frames, 6, 4(=act+XYZ), max_classes]
+        return label_mat
 
     # ------------------------------- EXTRACT FEATURE AND PREPROCESS IT -------------------------------
     def extract_all_feature(self):
@@ -251,7 +359,10 @@ class FeatureClass:
 
     # ------------------------------- EXTRACT LABELS AND PREPROCESS IT -------------------------------
     def extract_all_labels(self):
-        self._label_dir = self.get_label_dir()
+        if self._multi_accdoa:
+            self._label_dir = os.path.join(self._feat_label_dir, '{}_label_adpit'.format(self._dataset_combination))
+        else:
+            self._label_dir = os.path.join(self._feat_label_dir, '{}_label'.format(self._dataset_combination))
 
         print('Extracting labels:')
         print('\t\taud_dir {}\n\t\tdesc_dir {}\n\t\tlabel_dir {}'.format(
@@ -263,7 +374,10 @@ class FeatureClass:
                 wav_filename = '{}.wav'.format(file_name.split('.')[0])
                 desc_file_polar = self.load_output_format_file(os.path.join(loc_desc_folder, file_name))
                 desc_file = self.convert_output_format_polar_to_cartesian(desc_file_polar)
-                label_mat = self.get_labels_for_file(desc_file)
+                if self._multi_accdoa:
+                    label_mat = self.get_adpit_labels_for_file(desc_file)
+                else:
+                    label_mat = self.get_labels_for_file(desc_file)
                 print('{}: {}, {}'.format(file_cnt, file_name, label_mat.shape))
                 np.save(os.path.join(self._label_dir, '{}.npy'.format(wav_filename.split('.')[0])), label_mat)
 
@@ -430,9 +544,10 @@ class FeatureClass:
         if self._is_eval:
             return None
         else:
-            return os.path.join(
-                self._feat_label_dir, '{}_label'.format(self._dataset_combination)
-            )
+            if self._multi_accdoa:
+                return os.path.join(self._feat_label_dir, '{}_label_adpit'.format(self._dataset_combination))
+            else:
+                return os.path.join(self._feat_label_dir, '{}_label'.format(self._dataset_combination))
 
     def get_normalized_wts_file(self):
         return os.path.join(
