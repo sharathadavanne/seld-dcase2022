@@ -24,7 +24,8 @@ class ComputeSELDResults(object):
                 gt_dict = self._feat_cls.load_output_format_file(os.path.join(self._desc_dir, split, ref_file))
                 if not self._use_polar_format:
                     gt_dict = self._feat_cls.convert_output_format_polar_to_cartesian(gt_dict)
-                self._ref_labels[ref_file] = self._feat_cls.segment_labels(gt_dict, self._feat_cls.get_nb_frames())
+                nb_ref_frames = max(list(gt_dict.keys()))
+                self._ref_labels[ref_file] = [self._feat_cls.segment_labels(gt_dict, nb_ref_frames), nb_ref_frames]
 
         self._nb_ref_files = len(self._ref_labels)
         self._average = params['average']
@@ -66,10 +67,10 @@ class ComputeSELDResults(object):
             pred_dict = self._feat_cls.load_output_format_file(os.path.join(pred_files_path, pred_file))
             if self._use_polar_format:
                 pred_dict = self._feat_cls.convert_output_format_cartesian_to_polar(pred_dict)
-            pred_labels = self._feat_cls.segment_labels(pred_dict, self._feat_cls.get_nb_frames())
+            pred_labels = self._feat_cls.segment_labels(pred_dict, self._ref_labels[pred_file][1])
 
             # Calculated scores
-            eval.update_seld_scores(pred_labels, self._ref_labels[pred_file])
+            eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0])
 
         # Overall SED and DOA scores
         ER, F, LE, LR = eval.compute_seld_scores()
@@ -110,10 +111,10 @@ class ComputeSELDResults(object):
                     pred_dict = self._feat_cls.load_output_format_file(os.path.join(pred_output_format_files, pred_file))
                     if self._use_polar_format:
                         pred_dict = self._feat_cls.convert_output_format_cartesian_to_polar(pred_dict)
-                    pred_labels = self._feat_cls.segment_labels(pred_dict, self._feat_cls.get_nb_frames())
+                    pred_labels = self._feat_cls.segment_labels(pred_dict, self._ref_labels[pred_file][1])
 
                     # Calculated scores
-                    eval.update_seld_scores(pred_labels, self._ref_labels[pred_file])
+                    eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0])
 
                 # Overall SED and DOA scores
                 ER, F, LE, LR = eval.compute_seld_scores()

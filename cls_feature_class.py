@@ -13,7 +13,8 @@ import librosa
 plot.switch_backend('agg')
 import shutil
 import math
-
+import wave
+import contextlib
 
 def nCr(n, r):
     return math.factorial(n) // math.factorial(r) // math.factorial(n-r)
@@ -65,22 +66,31 @@ class FeatureClass:
 
         # Sound event classes dictionary
         self._nb_unique_classes = params['unique_classes']
-        self._audio_max_len_samples = params['max_audio_len_s'] * self._fs  # TODO: Fix the audio synthesis code to always generate 60s of
-        # audio. Currently it generates audio till the last active sound event, which is not always 60s long. This is a
-        # quick fix to overcome that. We need this because, for processing and training we need the length of features
-        # to be fixed.
 
-        self._max_feat_frames = int(np.ceil(self._audio_max_len_samples / float(self._hop_len)))
-        self._max_label_frames = int(np.ceil(self._audio_max_len_samples / float(self._label_hop_len)))
+        self._filewise_frames = {}
+
+    def get_frame_stats(self):
+
+        if len(self._filewise_frames)!=0:
+            return
+
+        print('Computing frame stats:')
+        print('\t\taud_dir {}\n\t\tdesc_dir {}\n\t\tfeat_dir {}'.format(
+            self._aud_dir, self._desc_dir, self._feat_dir))
+        for sub_folder in os.listdir(self._aud_dir):
+            loc_aud_folder = os.path.join(self._aud_dir, sub_folder)
+            for file_cnt, file_name in enumerate(os.listdir(loc_aud_folder)):
+                wav_filename = '{}.wav'.format(file_name.split('.')[0])
+                with contextlib.closing(wave.open(os.path.join(loc_aud_folder, wav_filename),'r')) as f: 
+                    audio_len = f.getnframes()
+                nb_feat_frames = int(audio_len / float(self._hop_len))
+                nb_label_frames = int(audio_len / float(self._label_hop_len))
+                self._filewise_frames[file_name.split('.')[0]] = [nb_feat_frames, nb_label_frames]
+        return
 
     def _load_audio(self, audio_path):
         fs, audio = wav.read(audio_path)
         audio = audio[:, :self._nb_channels] / 32768.0 + self._eps
-        if audio.shape[0] < self._audio_max_len_samples:
-            zero_pad = np.random.rand(self._audio_max_len_samples - audio.shape[0], audio.shape[1])*self._eps
-            audio = np.vstack((audio, zero_pad))
-        elif audio.shape[0] > self._audio_max_len_samples:
-            audio = audio[:self._audio_max_len_samples, :]
         return audio, fs
 
     # INPUT FEATURES
@@ -88,15 +98,15 @@ class FeatureClass:
     def _next_greater_power_of_2(x):
         return 2 ** (x - 1).bit_length()
 
-    def _spectrogram(self, audio_input):
+    def _spectrogram(self, audio_input, _nb_frames):
         _nb_ch = audio_input.shape[1]
         nb_bins = self._nfft // 2
-        spectra = np.zeros((self._max_feat_frames, nb_bins + 1, _nb_ch), dtype=complex)
+        spectra = []
         for ch_cnt in range(_nb_ch):
             stft_ch = librosa.core.stft(np.asfortranarray(audio_input[:, ch_cnt]), n_fft=self._nfft, hop_length=self._hop_len,
                                         win_length=self._win_len, window='hann')
-            spectra[:, :, ch_cnt] = stft_ch[:, :self._max_feat_frames].T
-        return spectra
+            spectra.append(stft_ch[:, :_nb_frames])
+        return np.array(spectra).T
 
     def _get_mel_spectrogram(self, linear_spectra):
         mel_feat = np.zeros((linear_spectra.shape[0], self._nb_mel_bins, linear_spectra.shape[-1]))
@@ -136,11 +146,16 @@ class FeatureClass:
 
     def _get_spectrogram_for_file(self, audio_filename):
         audio_in, fs = self._load_audio(audio_filename)
-        audio_spec = self._spectrogram(audio_in)
+         
+        nb_feat_frames = int(len(audio_in) / float(self._hop_len))
+        nb_label_frames = int(len(audio_in) / float(self._label_hop_len))
+        self._filewise_frames[os.path.basename(audio_filename).split('.')[0]] = [nb_feat_frames, nb_label_frames]
+
+        audio_spec = self._spectrogram(audio_in, nb_feat_frames)
         return audio_spec
 
     # OUTPUT LABELS
-    def get_labels_for_file(self, _desc_file):
+    def get_labels_for_file(self, _desc_file, _nb_label_frames):
         """
         Reads description file and returns classification based SED labels and regression based DOA labels
 
@@ -150,13 +165,13 @@ class FeatureClass:
 
         # If using Hungarian net set default DOA value to a fixed value greater than 1 for all axis. We are choosing a fixed value of 10
         # If not using Hungarian net use a deafult DOA, which is a unit vector. We are choosing (x, y, z) = (0, 0, 1)
-        se_label = np.zeros((self._max_label_frames, self._nb_unique_classes))
-        x_label = np.zeros((self._max_label_frames, self._nb_unique_classes))
-        y_label = np.zeros((self._max_label_frames, self._nb_unique_classes))
-        z_label = np.zeros((self._max_label_frames, self._nb_unique_classes))
+        se_label = np.zeros((_nb_label_frames, self._nb_unique_classes))
+        x_label = np.zeros((_nb_label_frames, self._nb_unique_classes))
+        y_label = np.zeros((_nb_label_frames, self._nb_unique_classes))
+        z_label = np.zeros((_nb_label_frames, self._nb_unique_classes))
 
         for frame_ind, active_event_list in _desc_file.items():
-            if frame_ind < self._max_label_frames:
+            if frame_ind < _nb_label_frames:
                 for active_event in active_event_list:
                     se_label[frame_ind, active_event[0]] = 1
                     x_label[frame_ind, active_event[0]] = active_event[2]
@@ -167,7 +182,7 @@ class FeatureClass:
         return label_mat
 
     # OUTPUT LABELS
-    def get_adpit_labels_for_file(self, _desc_file):
+    def get_adpit_labels_for_file(self, _desc_file, _nb_label_frames):
         """
         Reads description file and returns classification based SED labels and regression based DOA labels
         for multi-ACCDOA with Auxiliary Duplicating Permutation Invariant Training (ADPIT)
@@ -176,13 +191,13 @@ class FeatureClass:
         :return: label_mat: of dimension [nb_frames, 6, 4(=act+XYZ), max_classes]
         """
 
-        se_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))  # [nb_frames, 6, max_classes]
-        x_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
-        y_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
-        z_label = np.zeros((self._max_label_frames, 6, self._nb_unique_classes))
+        se_label = np.zeros((_nb_label_frames, 6, self._nb_unique_classes))  # [nb_frames, 6, max_classes]
+        x_label = np.zeros((_nb_label_frames, 6, self._nb_unique_classes))
+        y_label = np.zeros((_nb_label_frames, 6, self._nb_unique_classes))
+        z_label = np.zeros((_nb_label_frames, 6, self._nb_unique_classes))
 
         for frame_ind, active_event_list in _desc_file.items():
-            if frame_ind < self._max_label_frames:
+            if frame_ind < _nb_label_frames:
                 active_event_list.sort(key=lambda x: x[0])  # sort for ov from the same class
                 active_event_list_per_class = []
                 for i, active_event in enumerate(active_event_list):
@@ -274,20 +289,10 @@ class FeatureClass:
         return label_mat
 
     # ------------------------------- EXTRACT FEATURE AND PREPROCESS IT -------------------------------
-    def extract_all_feature(self):
-        # setting up folders
-        self._feat_dir = self.get_unnormalized_feat_dir()
-        create_folder(self._feat_dir)
 
-        # extraction starts
-        print('Extracting spectrogram:')
-        print('\t\taud_dir {}\n\t\tdesc_dir {}\n\t\tfeat_dir {}'.format(
-            self._aud_dir, self._desc_dir, self._feat_dir))
-        for sub_folder in os.listdir(self._aud_dir):
-            loc_aud_folder = os.path.join(self._aud_dir, sub_folder)
-            for file_cnt, file_name in enumerate(os.listdir(loc_aud_folder)):
-                wav_filename = '{}.wav'.format(file_name.split('.')[0])
-                spect = self._get_spectrogram_for_file(os.path.join(loc_aud_folder, wav_filename))
+    def extract_file_feature(self, _arg_in):
+                _file_cnt, _wav_path, _feat_path = _arg_in
+                spect = self._get_spectrogram_for_file(_wav_path)
 
                 #extract mel
                 mel_spect = self._get_mel_spectrogram(spect)
@@ -305,14 +310,37 @@ class FeatureClass:
                     print('ERROR: Unknown dataset format {}'.format(self._dataset))
                     exit()
 
-                # plot.figure()
-                # plot.subplot(211), plot.imshow(mel_spect.T)
-                # plot.subplot(212), plot.imshow(foa_iv.T)
-                # plot.show()
-
                 if feat is not None:
-                    print('{}: {}, {}'.format(file_cnt, file_name, feat.shape ))
-                    np.save(os.path.join(self._feat_dir, '{}.npy'.format(wav_filename.split('.')[0])), feat)
+                    print('{}: {}, {}'.format(_file_cnt, os.path.basename(_wav_path), feat.shape ))
+                    np.save(_feat_path, feat)
+
+
+
+    def extract_all_feature(self):
+        # setting up folders
+        self._feat_dir = self.get_unnormalized_feat_dir()
+        create_folder(self._feat_dir)
+        from multiprocessing import Pool
+        import time
+        start_s = time.time()
+        # extraction starts
+        print('Extracting spectrogram:')
+        print('\t\taud_dir {}\n\t\tdesc_dir {}\n\t\tfeat_dir {}'.format(
+            self._aud_dir, self._desc_dir, self._feat_dir))
+        arg_list = []
+        for sub_folder in os.listdir(self._aud_dir):
+            loc_aud_folder = os.path.join(self._aud_dir, sub_folder)
+            for file_cnt, file_name in enumerate(os.listdir(loc_aud_folder)):
+                wav_filename = '{}.wav'.format(file_name.split('.')[0])
+                wav_path = os.path.join(loc_aud_folder, wav_filename)
+                feat_path = os.path.join(self._feat_dir, '{}.npy'.format(wav_filename.split('.')[0]))
+#                self.extract_file_feature(file_cnt, wav_path, feat_path)
+                arg_list.append((file_cnt, wav_path, feat_path))
+        with Pool() as pool:
+            result = pool.map(self.extract_file_feature, iterable=arg_list).get()
+            pool.close()
+            pool.join()
+        print(time.time()-start_s)
 
     def preprocess_features(self):
         # Setting up folders and filenames
@@ -359,6 +387,7 @@ class FeatureClass:
 
     # ------------------------------- EXTRACT LABELS AND PREPROCESS IT -------------------------------
     def extract_all_labels(self):
+        self.get_frame_stats()
         if self._multi_accdoa:
             self._label_dir = os.path.join(self._feat_label_dir, '{}_label_adpit'.format(self._dataset_combination))
         else:
@@ -372,12 +401,13 @@ class FeatureClass:
             loc_desc_folder = os.path.join(self._desc_dir, sub_folder)
             for file_cnt, file_name in enumerate(os.listdir(loc_desc_folder)):
                 wav_filename = '{}.wav'.format(file_name.split('.')[0])
+                nb_label_frames = self._filewise_frames[file_name.split('.')[0]][1]
                 desc_file_polar = self.load_output_format_file(os.path.join(loc_desc_folder, file_name))
                 desc_file = self.convert_output_format_polar_to_cartesian(desc_file_polar)
                 if self._multi_accdoa:
-                    label_mat = self.get_adpit_labels_for_file(desc_file)
+                    label_mat = self.get_adpit_labels_for_file(desc_file, nb_label_frames)
                 else:
-                    label_mat = self.get_labels_for_file(desc_file)
+                    label_mat = self.get_labels_for_file(desc_file, nb_label_frames)
                 print('{}: {}, {}'.format(file_cnt, file_name, label_mat.shape))
                 np.save(os.path.join(self._label_dir, '{}.npy'.format(wav_filename.split('.')[0])), label_mat)
 
@@ -566,9 +596,6 @@ class FeatureClass:
 
     def get_hop_len_sec(self):
         return self._hop_len_s
-
-    def get_nb_frames(self):
-        return self._max_label_frames
 
     def get_nb_mel_bins(self):
         return self._nb_mel_bins

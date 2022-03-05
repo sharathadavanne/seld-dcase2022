@@ -200,7 +200,6 @@ class DataGenerator(object):
                 feat = np.transpose(feat, (0, 2, 1, 3))
 
                 label = self._split_in_seqs(label, self._label_seq_len)
-#                label = [label[:, :, :self._max_overlap*self._nb_classes*3], label[:, :, self._max_overlap*self._nb_classes*3:-self._max_overlap*self._nb_classes], label[:, :, -self._max_overlap*self._nb_classes:]]
                 if self._multi_accdoa is True:
                     pass
                 else:
