@@ -8,15 +8,17 @@ def get_params(argv='1'):
     print("SET: {}".format(argv))
     # ########### default parameters ##############
     params = dict(
-        quick_test=True,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
+        quick_test=False,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
 
         # INPUT PATH
         # dataset_dir='DCASE2020_SELD_dataset/',  # Base folder containing the foa/mic and metadata folders
-        dataset_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/',
+        # dataset_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/',
+        dataset_dir = '/scratch/asignal/partha/DCASE2022_SELD_dataset',
 
         # OUTPUT PATH
         # feat_label_dir='DCASE2020_SELD_dataset/feat_label_hnet/',  # Directory to dump extracted features and labels
-        feat_label_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/seld_feat_label',  # Directory to dump extracted features and labels
+        # feat_label_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/seld_feat_label',  # Directory to dump extracted features and labels
+        feat_label_dir='/scratch/asignal/partha/DCASE2022_SELD_dataset/seld_feat_label', 
 
         model_dir='models/',   # Dumps the trained models and training curves in this folder
 
@@ -34,7 +36,7 @@ def get_params(argv='1'):
         nb_mel_bins=64,
 
         # MODEL TYPE
-        multi_accdoa=True,  # False - Single-ACCDOA or True - Multi-ACCDOA
+        multi_accdoa=False,  # False - Single-ACCDOA or True - Multi-ACCDOA
         thresh_unify=15,  # threshold of unification for inference in degree
 
         # DNN MODEL PARAMETERS
@@ -87,7 +89,14 @@ def get_params(argv='1'):
     params['feature_sequence_length'] = params['label_sequence_length'] * feature_label_resolution
     params['t_pool_size'] = [feature_label_resolution, 1, 1]     # CNN time pooling
     params['patience'] = int(params['nb_epochs'])     # Stop training if patience is reached
-    params['unique_classes'] = 12 if '2021' in params['dataset_dir'] else 14 # maximum number of overlapping sound events
+
+    if '2020' in params['dataset_dir']:
+        params['unique_classes'] = 14 
+    elif '2021' in params['dataset_dir']:
+        params['unique_classes'] = 12
+    elif '2022' in params['dataset_dir']:
+        params['unique_classes'] = 11
+
     for key, value in params.items():
         print("\t{}: {}".format(key, value))
     return params

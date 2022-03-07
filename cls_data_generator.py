@@ -82,9 +82,16 @@ class DataGenerator(object):
         return self._nb_total_batches
 
     def _get_filenames_list_and_feat_label_sizes(self):
+        max_frames = -1
         for filename in os.listdir(self._feat_dir):
             if int(filename[4]) in self._splits: # check which split the file belongs to
                 self._filenames_list.append(filename)
+                
+                if self._per_file:
+                    temp_feat = np.load(os.path.join(self._feat_dir, filename))
+                    if temp_feat.shape[0]>max_frames:
+                        max_frames = temp_feat.shape[0]
+
 
         temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[0]))
         self._nb_frames_file = temp_feat.shape[0]
@@ -101,7 +108,8 @@ class DataGenerator(object):
             self._doa_len = 3 # Cartesian
 
         if self._per_file:
-            self._batch_size = int(np.ceil(temp_feat.shape[0]/float(self._feature_seq_len)))
+            self._batch_size = int(np.ceil(max_frames/float(self._feature_seq_len)))
+            print('\tWARNING: Resetting batch size to {}. To accommodate the inference of longest file of {} frames in a single batch'.format(self._batch_size, max_frames))
 
         return
 
@@ -168,6 +176,8 @@ class DataGenerator(object):
                     # If self._per_file is True, this returns the sequences belonging to a single audio recording
                     if self._per_file:
                         feat_extra_frames = self._feature_batch_seq_len - temp_feat.shape[0]
+                        if feat_extra_frames <=0:
+                            embed()
                         extra_feat = np.ones((feat_extra_frames, temp_feat.shape[1])) * 1e-6
 
                         label_extra_frames = self._label_batch_seq_len - temp_label.shape[0]
