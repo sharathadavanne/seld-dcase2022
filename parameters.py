@@ -8,17 +8,17 @@ def get_params(argv='1'):
     print("SET: {}".format(argv))
     # ########### default parameters ##############
     params = dict(
-        quick_test=False,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
+        quick_test=True,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
 
         # INPUT PATH
         # dataset_dir='DCASE2020_SELD_dataset/',  # Base folder containing the foa/mic and metadata folders
-        # dataset_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/',
-        dataset_dir = '/scratch/asignal/partha/DCASE2022_SELD_dataset',
+        dataset_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/',
+        #dataset_dir = '/scratch/asignal/partha/DCASE2022_SELD_dataset',
 
         # OUTPUT PATH
         # feat_label_dir='DCASE2020_SELD_dataset/feat_label_hnet/',  # Directory to dump extracted features and labels
-        # feat_label_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/seld_feat_label',  # Directory to dump extracted features and labels
-        feat_label_dir='/scratch/asignal/partha/DCASE2022_SELD_dataset/seld_feat_label', 
+        feat_label_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/seld_feat_label',  # Directory to dump extracted features and labels
+        #feat_label_dir='/scratch/asignal/partha/DCASE2022_SELD_dataset/seld_feat_label', 
 
         model_dir='models/',   # Dumps the trained models and training curves in this folder
 
@@ -34,6 +34,10 @@ def get_params(argv='1'):
         label_hop_len_s=0.1,
         max_audio_len_s=60,
         nb_mel_bins=64,
+        use_salsalite = False, # Used for MIC dataset only. If true use salsalite features, else use GCC features
+        fmin_doa_salsalite = 50,
+        fmax_doa_salsalite = 2000,
+        fmax_spectra_salsalite = 9000,
 
         # MODEL TYPE
         multi_accdoa=False,  # False - Single-ACCDOA or True - Multi-ACCDOA
@@ -41,7 +45,7 @@ def get_params(argv='1'):
 
         # DNN MODEL PARAMETERS
         label_sequence_length=50,    # Feature sequence length
-        batch_size=256,              # Batch size
+        batch_size=128,              # Batch size
         # batch_size=128,              # Batch size
         dropout_rate=0.05,             # Dropout rate, constant for all layers
         nb_cnn2d_filt=64,           # Number of CNN nodes, constant for each layer

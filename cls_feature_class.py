@@ -63,6 +63,24 @@ class FeatureClass:
         self._nb_channels = 4
 
         self._multi_accdoa = params['multi_accdoa']
+        self._use_salsalite = params['use_salsalite']
+        if self._use_salsalite:
+            # Initialize the spatial feature constants
+            self._lower_bin = np.int(np.floor(params['fmin_doa_salsalite'] * self._nfft / np.float(self._fs)))
+            self._lower_bin = np.max((1, self._lower_bin))
+            self._upper_bin = np.int(np.floor(np.min((params['fmax_doa_salsalite'], self._fs//2)) * self._nfft / np.float(self._fs)))
+
+
+            # Normalization factor for salsalite
+            c = 343
+            self._delta = 2 * np.pi * self._fs / (self._nfft * c)
+            self._freq_vector = np.arange(self._nfft//2 + 1)
+            self._freq_vector[0] = 1
+            self._freq_vector = self._freq_vector[None, :, None]  # 1 x n_bins x 1 
+
+            # Initialize spectral feature constants
+            self._cutoff_bin = np.int(np.floor(params['fmax_spectra_salsalite'] * self._nfft / np.float(self._fs)))
+            assert self._upper_bin <= self._cutoff_bin, 'Upper bin for doa featurei {} is higher than cutoff bin for spectrogram {}!'.format()
 
         # Sound event classes dictionary
         self._nb_unique_classes = params['unique_classes']
@@ -143,6 +161,26 @@ class FeatureClass:
                 gcc_feat[:, :, cnt] = cc
                 cnt += 1
         return gcc_feat.transpose((0, 2, 1)).reshape((linear_spectra.shape[0], -1))
+
+    def _get_salsalite(self, linear_spectra):
+        # Adapted from the official SALSA repo- https://github.com/thomeou/SALSA
+        # spatial features
+        phase_vector = np.angle(linear_spectra[:, :, 1:] * np.conj(linear_spectra[:, :, 0, None]))
+        phase_vector = phase_vector / (self._delta * self._freq_vector)
+        phase_vector = phase_vector[:, self._lower_bin:self._cutoff_bin, :]
+        phase_vector[:, self._upper_bin:, :] = 0
+        phase_vector = phase_vector.transpose((0, 2, 1)).reshape((phase_vector.shape[0], -1))
+
+        # spectral features
+        linear_spectra = np.abs(linear_spectra)**2
+        for ch_cnt in range(linear_spectra.shape[-1]):
+            linear_spectra[:, :, ch_cnt] = librosa.power_to_db(linear_spectra[:, :, ch_cnt], ref=1.0, amin=1e-10, top_db=None)
+        linear_spectra = linear_spectra[:, self._lower_bin:self._cutoff_bin, :]
+        linear_spectra = linear_spectra.transpose((0, 2, 1)).reshape((linear_spectra.shape[0], -1))
+        
+        return np.concatenate((linear_spectra, phase_vector), axis=-1) 
+
+
 
     def _get_spectrogram_for_file(self, audio_filename):
         audio_in, fs = self._load_audio(audio_filename)
@@ -295,7 +333,8 @@ class FeatureClass:
                 spect = self._get_spectrogram_for_file(_wav_path)
 
                 #extract mel
-                mel_spect = self._get_mel_spectrogram(spect)
+                if not self._use_salsalite:
+                    mel_spect = self._get_mel_spectrogram(spect)
 
                 feat = None
                 if self._dataset == 'foa':
@@ -303,9 +342,12 @@ class FeatureClass:
                     foa_iv = self._get_foa_intensity_vectors(spect)
                     feat = np.concatenate((mel_spect, foa_iv), axis=-1)
                 elif self._dataset == 'mic':
-                    # extract gcc
-                    gcc = self._get_gcc(spect)
-                    feat = np.concatenate((mel_spect, gcc), axis=-1)
+                    if self._use_salsalite:
+                        feat = self._get_salsalite(spect)
+                    else:
+                        # extract gcc
+                        gcc = self._get_gcc(spect)
+                        feat = np.concatenate((mel_spect, gcc), axis=-1)
                 else:
                     print('ERROR: Unknown dataset format {}'.format(self._dataset))
                     exit()
@@ -334,12 +376,12 @@ class FeatureClass:
                 wav_filename = '{}.wav'.format(file_name.split('.')[0])
                 wav_path = os.path.join(loc_aud_folder, wav_filename)
                 feat_path = os.path.join(self._feat_dir, '{}.npy'.format(wav_filename.split('.')[0]))
-#                self.extract_file_feature((file_cnt, wav_path, feat_path))
+                self.extract_file_feature((file_cnt, wav_path, feat_path))
                 arg_list.append((file_cnt, wav_path, feat_path))
-        with Pool() as pool:
-            result = pool.map(self.extract_file_feature, iterable=arg_list)
-            pool.close()
-            pool.join()
+#        with Pool() as pool:
+#            result = pool.map(self.extract_file_feature, iterable=arg_list)
+#            pool.close()
+#            pool.join()
         print(time.time()-start_s)
 
     def preprocess_features(self):
@@ -561,23 +603,23 @@ class FeatureClass:
     def get_normalized_feat_dir(self):
         return os.path.join(
             self._feat_label_dir,
-            '{}_norm'.format(self._dataset_combination)
+            '{}_norm'.format('{}_salsa'.format(self._dataset_combination) if (self._dataset=='mic' and self._use_salsalite) else self._dataset_combination)
         )
 
     def get_unnormalized_feat_dir(self):
         return os.path.join(
             self._feat_label_dir,
-            '{}'.format(self._dataset_combination)
+            '{}'.format('{}_salsa'.format(self._dataset_combination) if (self._dataset=='mic' and self._use_salsalite) else self._dataset_combination)
         )
 
     def get_label_dir(self):
         if self._is_eval:
             return None
         else:
-            if self._multi_accdoa:
-                return os.path.join(self._feat_label_dir, '{}_label_adpit'.format(self._dataset_combination))
-            else:
-                return os.path.join(self._feat_label_dir, '{}_label'.format(self._dataset_combination))
+            return os.path.join(
+                self._feat_label_dir,
+               '{}_label'.format('{}_adpit'.format(self._dataset_combination) if self._multi_accdoa else self._dataset_combination)
+        )
 
     def get_normalized_wts_file(self):
         return os.path.join(
@@ -598,7 +640,7 @@ class FeatureClass:
         return self._hop_len_s
 
     def get_nb_mel_bins(self):
-        return self._nb_mel_bins
+        return self._cutoff_bin-self._lower_bin if self._use_salsalite else self._nb_mel_bins
 
 
 def create_folder(folder_name):

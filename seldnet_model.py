@@ -232,7 +232,7 @@ class CRNN(torch.nn.Module):
                 )
 
         if params['nb_rnn_layers']:
-            self.in_gru_size = int(params['nb_cnn2d_filt'] * (in_feat_shape[-1] / np.prod(params['f_pool_size'])))
+            self.in_gru_size = params['nb_cnn2d_filt'] * int( np.floor(in_feat_shape[-1] / np.prod(params['f_pool_size'])))
             self.gru = torch.nn.GRU(input_size=self.in_gru_size, hidden_size=params['rnn_size'],
                                     num_layers=params['nb_rnn_layers'], batch_first=True,
                                     dropout=params['dropout_rate'], bidirectional=True)
@@ -258,7 +258,6 @@ class CRNN(torch.nn.Module):
         for conv_cnt in range(len(self.conv_block_list)):
             x = self.conv_block_list[conv_cnt](x)
         '''(batch_size, feature_maps, time_steps, mel_bins)'''
-
         x = x.transpose(1, 2).contiguous()
         x = x.view(x.shape[0], x.shape[1], -1).contiguous()
         ''' (batch_size, time_steps, feature_maps):'''

@@ -94,7 +94,7 @@ class DataGenerator(object):
 
 
         temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[0]))
-        self._nb_frames_file = temp_feat.shape[0]
+        self._nb_frames_file = max_frames if self._per_file else temp_feat.shape[0]
         self._nb_ch = temp_feat.shape[1] // self._nb_mel_bins
 
         if not self._is_eval:
@@ -176,8 +176,6 @@ class DataGenerator(object):
                     # If self._per_file is True, this returns the sequences belonging to a single audio recording
                     if self._per_file:
                         feat_extra_frames = self._feature_batch_seq_len - temp_feat.shape[0]
-                        if feat_extra_frames <=0:
-                            embed()
                         extra_feat = np.ones((feat_extra_frames, temp_feat.shape[1])) * 1e-6
 
                         label_extra_frames = self._label_batch_seq_len - temp_label.shape[0]
