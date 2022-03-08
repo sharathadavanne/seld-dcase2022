@@ -366,9 +366,9 @@ def main(argv):
         )
         if params['average']=='macro':
             print('Classwise results on unseen test data')
-            print('Class\tER\tF\tLE\tLR')
+            print('Class\tER\tF\tLE\tLR\tSELD_score')
             for cls_cnt in range(params['unique_classes']):
-                print('{}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}'.format(cls_cnt, classwise_test_scr[0][cls_cnt], classwise_test_scr[1][cls_cnt], classwise_test_scr[2][cls_cnt], classwise_test_scr[3][cls_cnt]))
+                print('{}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}'.format(cls_cnt, classwise_test_scr[0][cls_cnt], classwise_test_scr[1][cls_cnt], classwise_test_scr[2][cls_cnt], classwise_test_scr[3][cls_cnt], classwise_test_scr[4][cls_cnt]))
 
 
 

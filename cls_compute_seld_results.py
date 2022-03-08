@@ -73,8 +73,7 @@ class ComputeSELDResults(object):
             eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0])
 
         # Overall SED and DOA scores
-        ER, F, LE, LR, classwise_results = eval.compute_seld_scores()
-        seld_scr = SELD_evaluation_metrics.early_stopping_metric([ER, F], [LE, LR])
+        ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
 
         return ER, F, LE, LR, seld_scr, classwise_results
 
@@ -117,8 +116,7 @@ class ComputeSELDResults(object):
                     eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0])
 
                 # Overall SED and DOA scores
-                ER, F, LE, LR, classwise_results = eval.compute_seld_scores()
-                seld_scr = SELD_evaluation_metrics.early_stopping_metric([ER, F], [LE, LR])
+                ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
 
                 print('\nAverage score for {} {} data using {} coordinates'.format(score_type, 'fold' if score_type=='all' else split_key, 'Polar' if self._use_polar_format else 'Cartesian' ))
                 print('SELD score (early stopping metric): {:0.2f}'.format(seld_scr))

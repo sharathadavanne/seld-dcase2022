@@ -44,6 +44,22 @@ class SELDMetrics(object):
 
         self._average = average
 
+    def early_stopping_metric(self, _er, _f, _le, _lr):
+        """
+        Compute early stopping metric from sed and doa errors.
+
+        :param sed_error: [error rate (0 to 1 range), f score (0 to 1 range)]
+        :param doa_error: [doa error (in degrees), frame recall (0 to 1 range)]
+        :return: early stopping metric result
+        """
+        seld_metric = np.mean([
+            _er,
+            1 - _f,
+            _le/180,
+            1 - _lr
+            ], 0)
+        return seld_metric
+
     def compute_seld_scores(self):
         '''
         Collect the final SELD scores
@@ -63,6 +79,7 @@ class SELDMetrics(object):
             LE = self._total_DE.sum() / float(self._DE_TP.sum() + eps)
             LR = self._DE_TP.sum() / (eps + self._DE_TP.sum() + self._DE_FN.sum())
 
+            SELD_scr = self.early_stopping_metric(ER, F, LE, LR)
         elif self._average=='macro':
             # Location-sensitive detection performance
             ER = (S + D + I) / (self._Nref + eps)
@@ -71,9 +88,11 @@ class SELDMetrics(object):
             # Class-sensitive localization performance
             LE = self._total_DE / (self._DE_TP + eps) 
             LR = self._DE_TP / (eps + self._DE_TP + self._DE_FN)
-            classwise_results = np.array([ER, F, LE, LR])
-            ER, F, LE, LR = ER.mean(), F.mean(), LE.mean(), LR.mean()
-        return ER, F, LE, LR, classwise_results
+
+            SELD_scr = self.early_stopping_metric(ER, F, LE, LR)
+            classwise_results = np.array([ER, F, LE, LR, SELD_scr])
+            ER, F, LE, LR, SELD_scr = ER.mean(), F.mean(), LE.mean(), LR.mean(), SELD_scr.mean()
+        return ER, F, LE, LR, SELD_scr, classwise_results
 
     def update_seld_scores(self, pred, gt):
         '''
@@ -224,21 +243,5 @@ def least_distance_between_gt_pred(gt_list, pred_list):
     cost = cost_mat[row_ind, col_ind]
     return cost, row_ind, col_ind
 
-
-def early_stopping_metric(sed_error, doa_error):
-    """
-    Compute early stopping metric from sed and doa errors.
-
-    :param sed_error: [error rate (0 to 1 range), f score (0 to 1 range)]
-    :param doa_error: [doa error (in degrees), frame recall (0 to 1 range)]
-    :return: early stopping metric result
-    """
-    seld_metric = np.mean([
-        sed_error[0],
-        1 - sed_error[1],
-        doa_error[0]/180,
-        1 - doa_error[1]]
-        )
-    return seld_metric
 
 
