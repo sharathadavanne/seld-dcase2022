@@ -268,7 +268,9 @@ def main(argv):
         # Collect i/o data size and load model configuration
         data_in, data_out = data_gen_train.get_data_sizes()
         model = seldnet_model.CRNN(data_in, data_out, params).to(device)
-       # model.load_state_dict(torch.load("models/1_1_foa_dev_split6_model.h5", map_location='cpu'))
+        if params['finetune_mode']:
+            print('Running in finetuning mode. Initializing the model to the weights - {}'.format(params['pretrained_model_weights']))
+            model.load_state_dict(torch.load(params['pretrained_model_weights'], map_location='cpu'))
 
         print('---------------- SELD-net -------------------')
         print('FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out))
@@ -350,7 +352,7 @@ def main(argv):
         )
 
         # Dump results in DCASE output format for calculating final scores
-        dcase_output_test_folder = os.path.join(params['dcase_output_dir'], '{}_{}_{}_test'.format(task_id, params['dataset'], params['mode']))
+        dcase_output_test_folder = os.path.join(params['dcase_output_dir'], '{}_{}_{}_{}_test'.format(task_id, params['dataset'], params['mode'], strftime("%Y%m%d%H%M%S", gmtime())))
         cls_feature_class.delete_and_create_folder(dcase_output_test_folder)
         print('Dumping recording-wise test results in: {}'.format(dcase_output_test_folder))
 

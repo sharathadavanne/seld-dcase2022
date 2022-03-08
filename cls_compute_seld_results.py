@@ -129,14 +129,19 @@ def reshape_3Dto2D(A):
 
 if __name__ == "__main__":
     pred_output_format_files = 'results/1_foa_dev_test' # Path of the DCASEoutput format files
-
-    # Compute just the DCASE 2021 final results 
-    score_obj = ComputeSELDResults(parameters.get_params())
-    ER, F, LE, LR, seld_scr = score_obj.get_SELD_Results(pred_output_format_files)
+    params = parameters.get_params()
+    # Compute just the DCASE final results 
+    score_obj = ComputeSELDResults(params)
+    ER, F, LE, LR, seld_scr, classwise_test_scr = score_obj.get_SELD_Results(pred_output_format_files)
     print('SELD score (early stopping metric): {:0.2f}'.format(seld_scr))
     print('SED metrics: Error rate: {:0.2f}, F-score:{:0.1f}'.format(ER, 100*F))
     print('DOA metrics: Localization error: {:0.1f}, Localization Recall: {:0.1f}'.format(LE, 100*LR))
+    if params['average']=='macro':
+        print('Classwise results on unseen test data')
+        print('Class\tER\tF\tLE\tLR\tSELD_score')
+        for cls_cnt in range(params['unique_classes']):
+            print('{}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}'.format(cls_cnt, classwise_test_scr[0][cls_cnt], classwise_test_scr[1][cls_cnt], classwise_test_scr[2][cls_cnt], classwise_test_scr[3][cls_cnt], classwise_test_scr[4][cls_cnt]))
 
-    # Compute DCASE 2021 results along with room-wise performance
-    score_obj.get_consolidated_SELD_results(pred_output_format_files)
+    # UNCOMMENT to Compute DCASE results along with room-wise performance
+    # score_obj.get_consolidated_SELD_results(pred_output_format_files)
 
