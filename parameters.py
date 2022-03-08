@@ -8,7 +8,7 @@ def get_params(argv='1'):
     print("SET: {}".format(argv))
     # ########### default parameters ##############
     params = dict(
-        quick_test=True,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
+        quick_test=False,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
 
         # INPUT PATH
         # dataset_dir='DCASE2020_SELD_dataset/',  # Base folder containing the foa/mic and metadata folders
@@ -64,7 +64,7 @@ def get_params(argv='1'):
         lr=1e-3,
 
         # METRIC
-        average = 'micro',        # Supports 'micro': sample-wise average and 'macro': class-wise average
+        average = 'macro',        # Supports 'micro': sample-wise average and 'macro': class-wise average
         lad_doa_thresh=20
     )
 

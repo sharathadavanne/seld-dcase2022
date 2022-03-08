@@ -52,7 +52,8 @@ class SELDMetrics(object):
         '''
         S = np.minimum(self._FN, self._FP)
         D = np.maximum(0, self._FN-self._FP)
-        I = np.maximum(0, self._FP- self._FN) 
+        I = np.maximum(0, self._FP- self._FN)
+        classwise_results = [] 
         if self._average == 'micro':
             # Location-sensitive detection performance
             ER = (S.sum() + D.sum() + I.sum()) / float(self._Nref.sum() + eps)
@@ -70,8 +71,9 @@ class SELDMetrics(object):
             # Class-sensitive localization performance
             LE = self._total_DE / (self._DE_TP + eps) 
             LR = self._DE_TP / (eps + self._DE_TP + self._DE_FN)
+            classwise_results = np.array([ER, F, LE, LR])
             ER, F, LE, LR = ER.mean(), F.mean(), LE.mean(), LR.mean()
-        return ER, F, LE, LR
+        return ER, F, LE, LR, classwise_results
 
     def update_seld_scores(self, pred, gt):
         '''
