@@ -33,18 +33,13 @@ class DataGenerator(object):
         self._label_len = None  # total length of label - DOA + SED
         self._doa_len = None    # DOA label length
         self._nb_classes = self._feat_cls.get_nb_classes()
-        self._get_filenames_list_and_feat_label_sizes()
 
         self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
         self._label_batch_seq_len = self._batch_size*self._label_seq_len
         self._circ_buf_feat = None
         self._circ_buf_label = None
 
-        if self._per_file:
-            self._nb_total_batches = len(self._filenames_list)
-        else:
-            self._nb_total_batches = int(np.floor((len(self._filenames_list) * self._nb_frames_file /
-                                               float(self._feature_batch_seq_len))))
+        self._get_filenames_list_and_feat_label_sizes()
 
         print(
             '\tDatagen_mode: {}, nb_files: {}, nb_classes:{}\n'
@@ -82,15 +77,16 @@ class DataGenerator(object):
         return self._nb_total_batches
 
     def _get_filenames_list_and_feat_label_sizes(self):
-        max_frames = -1
+        print('Computing some stats about the dataset')
+        max_frames, total_frames = -1, 0
         for filename in os.listdir(self._feat_dir):
             if int(filename[4]) in self._splits: # check which split the file belongs to
                 self._filenames_list.append(filename)
                 
-                if self._per_file:
-                    temp_feat = np.load(os.path.join(self._feat_dir, filename))
-                    if temp_feat.shape[0]>max_frames:
-                        max_frames = temp_feat.shape[0]
+                temp_feat = np.load(os.path.join(self._feat_dir, filename))
+                total_frames += temp_feat.shape[0]
+                if temp_feat.shape[0]>max_frames:
+                    max_frames = temp_feat.shape[0]
 
 
         temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[0]))
@@ -110,7 +106,9 @@ class DataGenerator(object):
         if self._per_file:
             self._batch_size = int(np.ceil(max_frames/float(self._feature_seq_len)))
             print('\tWARNING: Resetting batch size to {}. To accommodate the inference of longest file of {} frames in a single batch'.format(self._batch_size, max_frames))
-
+            self._nb_total_batches = len(self._filenames_list)
+        else:
+            self._nb_total_batches = int(np.floor(total_frames / self._feature_batch_seq_len))
         return
 
     def generate(self):
@@ -167,6 +165,13 @@ class DataGenerator(object):
                 while len(self._circ_buf_feat) < self._feature_batch_seq_len:
                     temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt]))
                     temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[file_cnt]))
+                    if not self._per_file: 
+                        # Inorder to support variable length features, and labels of different resolution. 
+                        # We remove all frames in features and labels matrix that are outside 
+                        # the multiple of self._label_seq_len and self._feature_seq_len. Further we do this only in training.
+                        temp_label = temp_label[:temp_label.shape[0] - (temp_label.shape[0] % self._label_seq_len), :]
+                        temp_mul = temp_label.shape[0]//self._label_seq_len
+                        temp_feat = temp_feat[:temp_mul*self._feature_seq_len, :]
 
                     for f_row in temp_feat:
                         self._circ_buf_feat.append(f_row)

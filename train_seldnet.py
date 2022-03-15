@@ -233,9 +233,9 @@ def main(argv):
             train_splits = [[1, 2, 3, 4]]
 
         elif '2022' in params['dataset_dir']:
-            test_splits = [2, 4]
-            val_splits = [2, 4]
-            train_splits = [[1,3]]
+            test_splits = [[2, 4]]
+            val_splits = [[2, 4]]
+            train_splits = [[1, 3]]
 
         else:
             print('ERROR: Unknown dataset splits')
