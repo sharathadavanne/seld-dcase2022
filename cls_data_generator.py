@@ -34,8 +34,6 @@ class DataGenerator(object):
         self._doa_len = None    # DOA label length
         self._nb_classes = self._feat_cls.get_nb_classes()
 
-        self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
-        self._label_batch_seq_len = self._batch_size*self._label_seq_len
         self._circ_buf_feat = None
         self._circ_buf_label = None
 
@@ -78,20 +76,22 @@ class DataGenerator(object):
 
     def _get_filenames_list_and_feat_label_sizes(self):
         print('Computing some stats about the dataset')
-        max_frames, total_frames = -1, 0
+        max_frames, total_frames, temp_feat = -1, 0, []
         for filename in os.listdir(self._feat_dir):
             if int(filename[4]) in self._splits: # check which split the file belongs to
                 self._filenames_list.append(filename)
-                
+                    
                 temp_feat = np.load(os.path.join(self._feat_dir, filename))
-                total_frames += temp_feat.shape[0]
+                total_frames += (temp_feat.shape[0] - (temp_feat.shape[0] % self._feature_seq_len))
                 if temp_feat.shape[0]>max_frames:
                     max_frames = temp_feat.shape[0]
-
-
-        temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[0]))
-        self._nb_frames_file = max_frames if self._per_file else temp_feat.shape[0]
-        self._nb_ch = temp_feat.shape[1] // self._nb_mel_bins
+  
+        if len(temp_feat)!=0:
+            self._nb_frames_file = max_frames if self._per_file else temp_feat.shape[0]
+            self._nb_ch = temp_feat.shape[1] // self._nb_mel_bins
+        else:
+            print('Loading features failed')
+            exit()
 
         if not self._is_eval:
             temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[0]))
@@ -108,7 +108,10 @@ class DataGenerator(object):
             print('\tWARNING: Resetting batch size to {}. To accommodate the inference of longest file of {} frames in a single batch'.format(self._batch_size, max_frames))
             self._nb_total_batches = len(self._filenames_list)
         else:
-            self._nb_total_batches = int(np.floor(total_frames / self._feature_batch_seq_len))
+            self._nb_total_batches = int(np.floor(total_frames / (self._batch_size*self._feature_seq_len)))
+
+        self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
+        self._label_batch_seq_len = self._batch_size*self._label_seq_len
         return
 
     def generate(self):
