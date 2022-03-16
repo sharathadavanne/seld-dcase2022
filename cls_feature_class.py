@@ -430,10 +430,7 @@ class FeatureClass:
     # ------------------------------- EXTRACT LABELS AND PREPROCESS IT -------------------------------
     def extract_all_labels(self):
         self.get_frame_stats()
-        if self._multi_accdoa:
-            self._label_dir = os.path.join(self._feat_label_dir, '{}_label_adpit'.format(self._dataset_combination))
-        else:
-            self._label_dir = os.path.join(self._feat_label_dir, '{}_label'.format(self._dataset_combination))
+        self._label_dir = self.get_label_dir()
 
         print('Extracting labels:')
         print('\t\taud_dir {}\n\t\tdesc_dir {}\n\t\tlabel_dir {}'.format(

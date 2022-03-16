@@ -8,7 +8,7 @@ def get_params(argv='1'):
     print("SET: {}".format(argv))
     # ########### default parameters ##############
     params = dict(
-        quick_test=False,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
+        quick_test=True,     # To do quick test. Trains/test on small subset of dataset, and # of epochs
     
         finetune_mode = False,  # Finetune on existing model, requires the pretrained model path set - pretrained_model_weights
         pretrained_model_weights = 'models/1_1_foa_dev_split6_model.h5', 
@@ -23,7 +23,7 @@ def get_params(argv='1'):
         # feat_label_dir='DCASE2020_SELD_dataset/feat_label_hnet/',  # Directory to dump extracted features and labels
 #        feat_label_dir='/scratch/asignal/sharath/DCASE2021_SELD_dataset/seld_feat_label',  # Directory to dump extracted features and labels
         #feat_label_dir='/scratch/asignal/partha/DCASE2022_SELD_dataset/seld_feat_label', 
-        feat_label_dir = '/scratch/asignal/partha/DCASE2022_SELD_TAUonly_dataset/seld_feat_label',
+        feat_label_dir = '/scratch/asignal/partha/DCASE2022_SELD_TAUonly_dataset/seld_feat_label_multiaccdoa',
         model_dir='models/',   # Dumps the trained models and training curves in this folder
 
         dcase_output_dir='results/',    # recording-wise results are dumped in this path.

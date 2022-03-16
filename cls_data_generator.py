@@ -172,7 +172,7 @@ class DataGenerator(object):
                         # Inorder to support variable length features, and labels of different resolution. 
                         # We remove all frames in features and labels matrix that are outside 
                         # the multiple of self._label_seq_len and self._feature_seq_len. Further we do this only in training.
-                        temp_label = temp_label[:temp_label.shape[0] - (temp_label.shape[0] % self._label_seq_len), :]
+                        temp_label = temp_label[:temp_label.shape[0] - (temp_label.shape[0] % self._label_seq_len)]
                         temp_mul = temp_label.shape[0]//self._label_seq_len
                         temp_feat = temp_feat[:temp_mul*self._feature_seq_len, :]
 
@@ -180,14 +180,17 @@ class DataGenerator(object):
                         self._circ_buf_feat.append(f_row)
                     for l_row in temp_label:
                         self._circ_buf_label.append(l_row)
-
+                    
                     # If self._per_file is True, this returns the sequences belonging to a single audio recording
                     if self._per_file:
                         feat_extra_frames = self._feature_batch_seq_len - temp_feat.shape[0]
                         extra_feat = np.ones((feat_extra_frames, temp_feat.shape[1])) * 1e-6
 
                         label_extra_frames = self._label_batch_seq_len - temp_label.shape[0]
-                        extra_labels = np.zeros((label_extra_frames, temp_label.shape[1]))
+                        if self._multi_accdoa is True:
+                            extra_labels = np.zeros((label_extra_frames, self._num_track_dummy, self._num_axis, self._num_class))
+                        else:
+                            extra_labels = np.zeros((label_extra_frames, temp_label.shape[1]))
 
                         for f_row in extra_feat:
                             self._circ_buf_feat.append(f_row)
@@ -210,7 +213,6 @@ class DataGenerator(object):
                     label = np.zeros((self._label_batch_seq_len, self._label_len))
                     for j in range(self._label_batch_seq_len):
                         label[j, :] = self._circ_buf_label.popleft()
-
                 # Split to sequences
                 feat = self._split_in_seqs(feat, self._feature_seq_len)
                 feat = np.transpose(feat, (0, 2, 1, 3))
