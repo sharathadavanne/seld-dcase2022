@@ -55,8 +55,6 @@ class FeatureClass:
 
         self._win_len = 2 * self._hop_len
         self._nfft = self._next_greater_power_of_2(self._win_len)
-        self._nb_mel_bins = params['nb_mel_bins']
-        self._mel_wts = librosa.filters.mel(sr=self._fs, n_fft=self._nfft, n_mels=self._nb_mel_bins).T
 
         self._dataset = params['dataset']
         self._eps = 1e-8
@@ -64,7 +62,7 @@ class FeatureClass:
 
         self._multi_accdoa = params['multi_accdoa']
         self._use_salsalite = params['use_salsalite']
-        if self._use_salsalite:
+        if self._use_salsalite and self._dataset=='mic':
             # Initialize the spatial feature constants
             self._lower_bin = np.int(np.floor(params['fmin_doa_salsalite'] * self._nfft / np.float(self._fs)))
             self._lower_bin = np.max((1, self._lower_bin))
@@ -81,7 +79,10 @@ class FeatureClass:
             # Initialize spectral feature constants
             self._cutoff_bin = np.int(np.floor(params['fmax_spectra_salsalite'] * self._nfft / np.float(self._fs)))
             assert self._upper_bin <= self._cutoff_bin, 'Upper bin for doa featurei {} is higher than cutoff bin for spectrogram {}!'.format()
-
+            self._nb_mel_bins = self._cutoff_bin-self._lower_bin 
+        else:
+            self._nb_mel_bins = params['nb_mel_bins']
+            self._mel_wts = librosa.filters.mel(sr=self._fs, n_fft=self._nfft, n_mels=self._nb_mel_bins).T
         # Sound event classes dictionary
         self._nb_unique_classes = params['unique_classes']
 
@@ -637,7 +638,7 @@ class FeatureClass:
         return self._hop_len_s
 
     def get_nb_mel_bins(self):
-        return self._cutoff_bin-self._lower_bin if self._use_salsalite else self._nb_mel_bins
+        return self._nb_mel_bins
 
 
 def create_folder(folder_name):

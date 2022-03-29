@@ -216,7 +216,7 @@ class DataGenerator(object):
                 # Split to sequences
                 feat = self._split_in_seqs(feat, self._feature_seq_len)
                 feat = np.transpose(feat, (0, 2, 1, 3))
-
+                
                 label = self._split_in_seqs(label, self._label_seq_len)
                 if self._multi_accdoa is True:
                     pass

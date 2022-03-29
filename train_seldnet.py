@@ -170,7 +170,7 @@ def train_epoch(data_generator, optimizer, model, criterion, params, device):
 
         # process the batch of data based on chosen mode
         output = model(data)
-       
+        
         loss = criterion(output, target)
         loss.backward()
         optimizer.step()
@@ -233,9 +233,9 @@ def main(argv):
             train_splits = [[1, 2, 3, 4]]
 
         elif '2022' in params['dataset_dir']:
-            test_splits = [[2, 4]]
-            val_splits = [[2, 4]]
-            train_splits = [[1, 3]]
+            test_splits = [[4]]
+            val_splits = [[4]]
+            train_splits = [[1, 2, 3]] 
 
         else:
             print('ERROR: Unknown dataset splits')
@@ -246,12 +246,19 @@ def main(argv):
         print('---------------------------------------------------------------------------------------------------')
 
         # Unique name for the run
+        loc_feat = params['dataset']
+        if params['dataset'] == 'mic':
+            if params['use_salsalite']:
+                loc_feat = '{}_salsa'.format(params['dataset'])
+            else:
+                loc_feat = '{}_gcc'.format(params['dataset'])
+        loc_output = 'multiaccdoa' if params['multi_accdoa'] else 'accdoa'
+
         cls_feature_class.create_folder(params['model_dir'])
-        unique_name = '{}_{}_{}_{}_split{}'.format(
-            task_id, job_id, params['dataset'], params['mode'], split
+        unique_name = '{}_{}_{}_split{}_{}_{}'.format(
+            task_id, job_id, params['mode'], split_cnt, loc_output, loc_feat
         )
-        unique_name = os.path.join(params['model_dir'], unique_name)
-        model_name = '{}_model.h5'.format(unique_name)
+        model_name = '{}_model.h5'.format(os.path.join(params['model_dir'], unique_name))
         print("unique_name: {}\n".format(unique_name))
 
         # Load train and validation data
@@ -280,7 +287,7 @@ def main(argv):
         print(model)
 
         # Dump results in DCASE output format for calculating final scores
-        dcase_output_val_folder = os.path.join(params['dcase_output_dir'], '{}_{}_{}_{}_val'.format(task_id, params['dataset'], params['mode'], strftime("%Y%m%d%H%M%S", gmtime())))
+        dcase_output_val_folder = os.path.join(params['dcase_output_dir'], '{}_{}_val'.format(unique_name, strftime("%Y%m%d%H%M%S", gmtime())))
         cls_feature_class.delete_and_create_folder(dcase_output_val_folder)
         print('Dumping recording-wise val results in: {}'.format(dcase_output_val_folder))
 
@@ -352,7 +359,7 @@ def main(argv):
         )
 
         # Dump results in DCASE output format for calculating final scores
-        dcase_output_test_folder = os.path.join(params['dcase_output_dir'], '{}_{}_{}_{}_test'.format(task_id, params['dataset'], params['mode'], strftime("%Y%m%d%H%M%S", gmtime())))
+        dcase_output_test_folder = os.path.join(params['dcase_output_dir'], '{}_{}_test'.format(unique_name, strftime("%Y%m%d%H%M%S", gmtime())))
         cls_feature_class.delete_and_create_folder(dcase_output_test_folder)
         print('Dumping recording-wise test results in: {}'.format(dcase_output_test_folder))
 
