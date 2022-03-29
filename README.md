@@ -18,14 +18,14 @@ In comparison to the SELDnet studied in [1], we have changed the output format t
 The final SELDnet architecture is as shown below. The input is the multichannel audio, from which the different acoustic features are extracted based on the input format of the audio. Based on the chosen dataset (FOA or MIC), the baseline method takes a sequence of consecutive feature-frames and predicts all the active sound event classes for each of the input frame along with their respective spatial location, producing the temporal activity and DOA trajectory for each sound event class. In particular, a convolutional recurrent neural network (CRNN) is used to map the frame sequence to a Multi-ACCDOA sequence output which encodes both [sound event detection (SED)](https://www.aane.in/research/computational-audio-scene-analysis-casa/sound-event-detection) and [direction of arrival (DOA)](https://www.aane.in/research/computational-audio-scene-analysis-casa/sound-event-localization-and-tracking) estimates in the continuous 3D space as a multi-output regression task. Each sound event class in the Multi-ACCDOA output is represented by three regressors that estimate the Cartesian coordinates x, y and z axes of the DOA around the microphone. If the vector length represented by x, y and z coordinates are greater than 0.5, the sound event is considered to be active, and the corresponding x, y, and z values are considered as its predicted DOA.
 
 <p align="center">
-   <img src="https://github.com/sharathadavanne/seld-dcase2022/blob/master/images/CRNN_SELD_DCASE2022.png" width="400" title="SELDnet+Multi-ACCDOA Architecture">
+   <img src="https://github.com/sharathadavanne/seld-dcase2022/blob/main/images/CRNN_SELD_DCASE2022.png" width="400" title="SELDnet+Multi-ACCDOA Architecture">
 </p>
 
 
 The figure below visualizes the SELDnet input and outputs for one of the recordings in the dataset. The horizontal-axis of all sub-plots for a given dataset represents the same time frames, the vertical-axis for spectrogram sub-plot represents the frequency bins, vertical-axis for SED reference and prediction sub-plots represents the unique sound event class identifier, and for the DOA reference and prediction sub-plots, it represents the distances along the Cartesian axes. The figures represents each sound event class and its associated DOA outputs with a unique color. Similar plot can be visualized on your results using the [provided script](visualize_seldnet_output.py).
 
 <p align="center">
-   <img src="https://github.com/sharathadavanne/seld-dcase2022/blob/master/images/SELDnet_output.jpg" width="300" title="SELDnet input and output visualization">
+   <img src="https://github.com/sharathadavanne/seld-dcase2022/blob/main/images/SELDnet_output.jpg" width="300" title="SELDnet input and output visualization">
 </p>
 
 ## DATASETS
@@ -120,7 +120,7 @@ python3 train_seldnet.py 3
 
 As the [SELD evaluation metric](https://www.aane.in/research/computational-audio-scene-analysis-casa/sound-event-localization-detection-and-tracking#h.ragsbsp7ujs) we employ the joint localization and detection metrics proposed in [1], with extensions from [2] to support multi-instance scoring of the same class.
 
-1. [Annamaria Mesaros, Sharath Adavanne, Archontis Politis, Toni Heittola, and Tuomas Virtanen, "Joint Measurement of Localization and Detection of Sound Events", IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA 2019)](https://tutcris.tut.fi/portal/files/21452683/mesaros_Joint_localization_and_detection_WASPAA2019.pdf)
+1. [Annamaria Mesaros, Sharath Adavanne, Archontis Politis, Toni Heittola, and Tuomas Virtanen, "Joint Measurement of Localization and Detection of Sound Events", IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA 2019)](https://ieeexplore.ieee.org/document/8937220)
 
 2. [Archontis Politis, Annamaria Mesaros, Sharath Adavanne, Toni Heittola, and Tuomas Virtanen, "Overview and Evaluation of Sound Event Localization and Detection in DCASE 2019", IEEE/ACM Transactions on Audio, Speech, and Language Processing (TASLP 2020)](https://arxiv.org/pdf/2009.02792.pdf)
 
