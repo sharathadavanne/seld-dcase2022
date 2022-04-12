@@ -276,7 +276,7 @@ class FeatureClass:
                             y_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[3]
                             z_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[4]
                             # ----c2
-                            active_event_c2 = active_event_list_per_class[1]
+                            active_event_c2 = active_event_list_per_class[2]
                             se_label[frame_ind, 5, active_event_c2[0]] = 1
                             x_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[2]
                             y_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[3]
@@ -317,7 +317,7 @@ class FeatureClass:
                             y_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[3]
                             z_label[frame_ind, 4, active_event_c1[0]] = active_event_c1[4]
                             # ----c2
-                            active_event_c2 = active_event_list_per_class[1]
+                            active_event_c2 = active_event_list_per_class[2]
                             se_label[frame_ind, 5, active_event_c2[0]] = 1
                             x_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[2]
                             y_label[frame_ind, 5, active_event_c2[0]] = active_event_c2[3]
