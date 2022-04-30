@@ -134,11 +134,11 @@ class SELDMetrics(object):
                         if gt_val in pred_ind_list:
                             gt_arr = np.array(gt[block_cnt][class_cnt][0][1][gt_ind])
                             gt_ids = np.arange(len(gt_arr[:, -1])) #TODO if the reference has track IDS use here - gt_arr[:, -1]
-                            gt_doas = gt_arr[:, :-1]
+                            gt_doas = gt_arr[:, 1:]
 
                             pred_ind = pred_ind_list.index(gt_val)
                             pred_arr = np.array(pred[block_cnt][class_cnt][0][1][pred_ind])
-                            pred_doas = pred_arr[:, :-1]
+                            pred_doas = pred_arr[:, 1:]
 
                             if gt_doas.shape[-1] == 2: # convert DOAs to radians, if the input is in degrees
                                 gt_doas = gt_doas * np.pi / 180.

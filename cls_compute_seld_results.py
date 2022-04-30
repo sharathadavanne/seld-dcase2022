@@ -128,7 +128,7 @@ def reshape_3Dto2D(A):
 
 
 if __name__ == "__main__":
-    pred_output_format_files = 'results/1_foa_dev_20220316104401_test' # Path of the DCASEoutput format files
+    pred_output_format_files = 'results/1_1_dev_split0_accdoa_foa_20220428133518_val' # Path of the DCASEoutput format files
     params = parameters.get_params()
     # Compute just the DCASE final results 
     score_obj = ComputeSELDResults(params)
