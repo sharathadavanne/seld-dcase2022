@@ -134,8 +134,8 @@ The evaluation metric scores for the test split of the development dataset is gi
 
 | Dataset | ER<sub>20°</sub> | F<sub>20°</sub> | LE<sub>CD</sub> | LR<sub>CD</sub> |
 | ----| --- | --- | --- | --- |
-| Ambisonic (FOA + Multi-ACCDOA) | 0.65 | 33.0 % | 20.7&deg; | 45.0 % |
-| Microphone Array (MIC-GCC + Multi-ACCDOA) | 0.64 | 28.0 % | 21.7&deg; | 45.0 % |
+| Ambisonic (FOA + Multi-ACCDOA) | 0.71 | 21.0 % | 29.3&deg; | 46.0 % |
+| Microphone Array (MIC-GCC + Multi-ACCDOA) | 0.71 | 18.0 % | 32.2&deg; | 47.0 % |
 
 **Note:** The reported baseline system performance is not exactly reproducible due to varying setups. However, you should be able to obtain very similar results.
 
