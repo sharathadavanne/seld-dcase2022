@@ -3,7 +3,46 @@ import SELD_evaluation_metrics
 import cls_feature_class
 import parameters
 import numpy as np
+from scipy import stats
+from IPython import embed
 
+def jackknife_estimation(global_value, partial_estimates, significance_level=0.05):
+    """
+    Compute jackknife statistics from a global value and partial estimates.
+    Original function by Nicolas Turpault
+
+    :param global_value: Value calculated using all (N) examples
+    :param partial_estimates: Partial estimates using N-1 examples at a time
+    :param significance_level: Significance value used for t-test
+
+    :return:
+    estimate: estimated value using partial estimates
+    bias: Bias computed between global value and the partial estimates
+    std_err: Standard deviation of partial estimates
+    conf_interval: Confidence interval obtained after t-test
+    """
+
+    mean_jack_stat = np.mean(partial_estimates)
+    n = len(partial_estimates)
+    bias = (n - 1) * (mean_jack_stat - global_value)
+
+    std_err = np.sqrt(
+        (n - 1) * np.mean((partial_estimates - mean_jack_stat) * (partial_estimates - mean_jack_stat), axis=0)
+    )
+
+    # bias-corrected "jackknifed estimate"
+    estimate = global_value - bias
+
+    # jackknife confidence interval
+    if not (0 < significance_level < 1):
+        raise ValueError("confidence level must be in (0, 1).")
+
+    t_value = stats.t.ppf(1 - significance_level / 2, n - 1)
+
+    # t-test
+    conf_interval = estimate + t_value * np.array((-std_err, std_err))
+
+    return estimate, bias, std_err, conf_interval
 
 class ComputeSELDResults(object):
     def __init__(
@@ -58,9 +97,10 @@ class ComputeSELDResults(object):
 
         return _cnt_dict
 
-    def get_SELD_Results(self, pred_files_path):
+    def get_SELD_Results(self, pred_files_path, is_jackknife=False):
         # collect predicted files info
         pred_files = os.listdir(pred_files_path)
+        pred_labels_dict = {}
         eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
         for pred_cnt, pred_file in enumerate(pred_files):
             # Load predicted output format file
@@ -68,14 +108,46 @@ class ComputeSELDResults(object):
             if self._use_polar_format:
                 pred_dict = self._feat_cls.convert_output_format_cartesian_to_polar(pred_dict)
             pred_labels = self._feat_cls.segment_labels(pred_dict, self._ref_labels[pred_file][1])
-
             # Calculated scores
             eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0])
-
+            if is_jackknife:
+                pred_labels_dict[pred_file] = pred_labels
         # Overall SED and DOA scores
         ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
 
-        return ER, F, LE, LR, seld_scr, classwise_results
+        if is_jackknife:
+            global_values = [ER, F, LE, LR, seld_scr]
+            if len(classwise_results):
+                global_values.extend(classwise_results.reshape(-1).tolist())
+            partial_estimates = []
+            # Calculate partial estimates by leave-one-out method
+            for leave_file in pred_files:
+                leave_one_out_list = pred_files[:]
+                leave_one_out_list.remove(leave_file)
+                eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
+                for pred_cnt, pred_file in enumerate(leave_one_out_list):
+                    # Calculated scores
+                    eval.update_seld_scores(pred_labels_dict[pred_file], self._ref_labels[pred_file][0])
+                ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
+                leave_one_out_est = [ER, F, LE, LR, seld_scr]
+                if len(classwise_results):
+                    leave_one_out_est.extend(classwise_results.reshape(-1).tolist())
+
+                # Overall SED and DOA scores
+                partial_estimates.append(leave_one_out_est)
+            partial_estimates = np.array(partial_estimates)
+                    
+            estimate, bias, std_err, conf_interval = [-1]*len(global_values), [-1]*len(global_values), [-1]*len(global_values), [-1]*len(global_values)
+            for i in range(len(global_values)):
+                estimate[i], bias[i], std_err[i], conf_interval[i] = jackknife_estimation(
+                           global_value=global_values[i],
+                           partial_estimates=partial_estimates[:, i],
+                           significance_level=0.05
+                           )
+            return [ER, conf_interval[0]], [F, conf_interval[1]], [LE, conf_interval[2]], [LR, conf_interval[3]], [seld_scr, conf_interval[4]], [classwise_results, np.array(conf_interval)[5:].reshape(5,13,2) if len(classwise_results) else []]
+      
+        else:      
+            return ER, F, LE, LR, seld_scr, classwise_results
 
     def get_consolidated_SELD_results(self, pred_files_path, score_type_list=['all', 'room']):
         '''
@@ -132,15 +204,23 @@ if __name__ == "__main__":
     params = parameters.get_params()
     # Compute just the DCASE final results 
     score_obj = ComputeSELDResults(params)
-    ER, F, LE, LR, seld_scr, classwise_test_scr = score_obj.get_SELD_Results(pred_output_format_files)
-    print('SELD score (early stopping metric): {:0.2f}'.format(seld_scr))
-    print('SED metrics: Error rate: {:0.2f}, F-score:{:0.1f}'.format(ER, 100*F))
-    print('DOA metrics: Localization error: {:0.1f}, Localization Recall: {:0.1f}'.format(LE, 100*LR))
+    use_jackknife=False
+    ER, F, LE, LR, seld_scr, classwise_test_scr = score_obj.get_SELD_Results(pred_output_format_files,is_jackknife=use_jackknife )
+   
+    print('SELD score (early stopping metric): {:0.2f} {}'.format(seld_scr[0] if use_jackknife else seld_scr, '[{:0.2f}, {:0.2f}]'.format(seld_scr[1][0], seld_scr[1][1]) if use_jackknife else ''))
+    print('SED metrics: Error rate: {:0.2f} {}, F-score: {:0.1f} {}'.format(ER[0]  if use_jackknife else ER, '[{:0.2f},  {:0.2f}]'.format(ER[1][0], ER[1][1]) if use_jackknife else '', 100*F[0]  if use_jackknife else 100*F, '[{:0.2f}, {:0.2f}]'.format(100*F[1][0], 100*F[1][1]) if use_jackknife else ''))
+    print('DOA metrics: Localization error: {:0.1f} {}, Localization Recall: {:0.1f} {}'.format(LE[0] if use_jackknife else LE, '[{:0.2f}, {:0.2f}]'.format(LE[1][0], LE[1][1]) if use_jackknife else '', 100*LR[0]  if use_jackknife else 100*LR,'[{:0.2f}, {:0.2f}]'.format(100*LR[1][0], 100*LR[1][1]) if use_jackknife else ''))
     if params['average']=='macro':
         print('Classwise results on unseen test data')
         print('Class\tER\tF\tLE\tLR\tSELD_score')
         for cls_cnt in range(params['unique_classes']):
-            print('{}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}\t{:0.2f}'.format(cls_cnt, classwise_test_scr[0][cls_cnt], classwise_test_scr[1][cls_cnt], classwise_test_scr[2][cls_cnt], classwise_test_scr[3][cls_cnt], classwise_test_scr[4][cls_cnt]))
+            print('{}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}'.format(
+cls_cnt, 
+classwise_test_scr[0][0][cls_cnt] if use_jackknife else classwise_test_scr[0][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][0][cls_cnt][0], classwise_test_scr[1][0][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][1][cls_cnt] if use_jackknife else classwise_test_scr[1][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][1][cls_cnt][0], classwise_test_scr[1][1][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][2][cls_cnt] if use_jackknife else classwise_test_scr[2][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][2][cls_cnt][0], classwise_test_scr[1][2][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][3][cls_cnt] if use_jackknife else classwise_test_scr[3][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][3][cls_cnt][0], classwise_test_scr[1][3][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][4][cls_cnt] if use_jackknife else classwise_test_scr[4][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][4][cls_cnt][0], classwise_test_scr[1][4][cls_cnt][1]) if use_jackknife else ''))
 
 
     # UNCOMMENT to Compute DCASE results along with room-wise performance

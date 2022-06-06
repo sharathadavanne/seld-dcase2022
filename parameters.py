@@ -112,42 +112,6 @@ def get_params(argv='1'):
         params['use_salsalite'] = True
         params['multi_accdoa'] = True
 
-    elif argv == '8':
-        print("MIC + SALSA + ACCDOA\n")
-        params['dataset'] = 'mic'
-        params['use_salsalite'] = True
-        params['multi_accdoa'] = False
-        params['nb_cnn2d_filt']=128
-        params['nb_rnn_layers']=2
-    elif argv == '9':
-        print("MIC + SALSA + ACCDOA\n")
-        params['dataset'] = 'mic'
-        params['use_salsalite'] = True
-        params['multi_accdoa'] = False
-        params['nb_cnn2d_filt']=128
-        params['nb_rnn_layers']=3
-
-    elif argv == '10':
-        print("MIC + SALSA + multi ACCDOA\n")
-        params['dataset'] = 'mic'
-        params['use_salsalite'] = True
-        params['multi_accdoa'] = True
-        params['nb_cnn2d_filt']=128
-        params['nb_rnn_layers']=2
-    elif argv == '11':
-        print("MIC + SALSA + multi ACCDOA\n")
-        params['dataset'] = 'mic'
-        params['use_salsalite'] = True
-        params['multi_accdoa'] = True
-        params['nb_cnn2d_filt']=128
-        params['nb_rnn_layers']=2
-    elif argv == '12':
-        print("MIC + SALSA + multi ACCDOA\n")
-        params['dataset'] = 'mic'
-        params['use_salsalite'] = True
-        params['multi_accdoa'] = True
-        params['nb_cnn2d_filt']=256
-        params['nb_rnn_layers']=2
     elif argv == '999':
         print("QUICK TEST MODE\n")
         params['quick_test'] = True
