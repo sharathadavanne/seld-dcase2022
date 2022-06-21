@@ -19,7 +19,7 @@ from IPython import embed
 
 
 class SELDMetrics(object):
-    def __init__(self, doa_threshold=20, nb_classes=11, average='macro'):
+    def __init__(self, doa_threshold=20, nb_classes=11, average='macro', dcase22_eval=False):
         '''
             This class implements both the class-sensitive localization and location-sensitive detection metrics.
             Additionally, based on the user input, the corresponding averaging is performed within the segment.
@@ -51,6 +51,7 @@ class SELDMetrics(object):
         self._DE_FN = np.zeros(self._nb_classes)
 
         self._average = average
+        self._dcase22_eval = dcase22_eval
 
     def early_stopping_metric(self, _er, _f, _le, _lr):
         """
@@ -85,6 +86,9 @@ class SELDMetrics(object):
             LR = self._DE_TP.sum() / (eps + self._DE_TP.sum() + self._DE_FN.sum())
 
             SELD_scr = self.early_stopping_metric(ER, F, LE, LR)
+            if self._dcase22_eval:
+                LE_no_penalty = self._total_DE.sum() / float(self._DE_TP.sum() + eps) 
+                SELD_scr_no_penalty = self.early_stopping_metric(ER, F, LE_no_penalty, LR)
 
         elif self._average == 'macro':
             # Location-sensitive detection performance
@@ -97,8 +101,18 @@ class SELDMetrics(object):
 
             SELD_scr = self.early_stopping_metric(np.repeat(ER, self._nb_classes), F, LE, LR)
             classwise_results = np.array([np.repeat(ER, self._nb_classes), F, LE, LR, SELD_scr])
-            F, LE, LR, SELD_scr = F.mean(), LE.mean(), LR.mean(), SELD_scr.mean()
-        return ER, F, LE, LR, SELD_scr, classwise_results
+            if self._dcase22_eval:
+                LE_no_penalty = self._total_DE / (self._DE_TP + eps) 
+                SELD_scr_no_penalty = self.early_stopping_metric(np.repeat(ER, self._nb_classes), F, LE_no_penalty, LR)
+                classwise_results = np.concatenate((classwise_results, np.array([LE_no_penalty, SELD_scr_no_penalty])))
+                F, LE, LR, SELD_scr , LE_no_penalty, SELD_scr_no_penalty= F.mean(), LE.mean(), LR.mean(), SELD_scr.mean(), LE_no_penalty.mean(), SELD_scr_no_penalty.mean()
+            else:
+                F, LE, LR, SELD_scr = F.mean(), LE.mean(), LR.mean(), SELD_scr.mean()
+                 
+        if self._dcase22_eval:
+            return ER, F, LE, LR, SELD_scr, LE_no_penalty, SELD_scr_no_penalty, classwise_results
+        else:
+            return ER, F, LE, LR, SELD_scr, classwise_results
 
     def update_seld_scores(self, pred, gt):
         '''

@@ -46,8 +46,9 @@ def jackknife_estimation(global_value, partial_estimates, significance_level=0.0
 
 class ComputeSELDResults(object):
     def __init__(
-            self, params, ref_files_folder=None, use_polar_format=True
+            self, params, ref_files_folder=None, use_polar_format=True, dcase22_eval=False
     ):
+        self._dcase22_eval = dcase22_eval
         self._use_polar_format = use_polar_format
         self._desc_dir = ref_files_folder if ref_files_folder is not None else os.path.join(params['dataset_dir'], 'metadata_dev')
         self._doa_thresh = params['lad_doa_thresh']
@@ -101,7 +102,7 @@ class ComputeSELDResults(object):
         # collect predicted files info
         pred_files = os.listdir(pred_files_path)
         pred_labels_dict = {}
-        eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
+        eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average, dcase22_eval=self._dcase22_eval)
         for pred_cnt, pred_file in enumerate(pred_files):
             # Load predicted output format file
             pred_dict = self._feat_cls.load_output_format_file(os.path.join(pred_files_path, pred_file))
@@ -113,10 +114,17 @@ class ComputeSELDResults(object):
             if is_jackknife:
                 pred_labels_dict[pred_file] = pred_labels
         # Overall SED and DOA scores
-        ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
-
+        if self._dcase22_eval:
+            ER, F, LE, LR, seld_scr,LE_no_penalty, seld_scr_no_penalty, classwise_results = eval.compute_seld_scores()
+        else:
+            ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
+#        print('ER/F/LE/LR/seld_scr: {:0.2f}/{:0.2f}/{:0.2f}/{:0.2f}/{:0.2f}'.format(ER,100*F, LE, 100*LR, seld_scr))
         if is_jackknife:
-            global_values = [ER, F, LE, LR, seld_scr]
+            global_classwise_results = classwise_results
+            if self._dcase22_eval:
+                global_values = [ER, F, LE, LR, seld_scr, LE_no_penalty, seld_scr_no_penalty]
+            else:
+                global_values = [ER, F, LE, LR, seld_scr]
             if len(classwise_results):
                 global_values.extend(classwise_results.reshape(-1).tolist())
             partial_estimates = []
@@ -124,12 +132,17 @@ class ComputeSELDResults(object):
             for leave_file in pred_files:
                 leave_one_out_list = pred_files[:]
                 leave_one_out_list.remove(leave_file)
-                eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average)
+                eval = SELD_evaluation_metrics.SELDMetrics(nb_classes=self._feat_cls.get_nb_classes(), doa_threshold=self._doa_thresh, average=self._average, dcase22_eval=self._dcase22_eval)
                 for pred_cnt, pred_file in enumerate(leave_one_out_list):
                     # Calculated scores
                     eval.update_seld_scores(pred_labels_dict[pred_file], self._ref_labels[pred_file][0])
-                ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
-                leave_one_out_est = [ER, F, LE, LR, seld_scr]
+                if self._dcase22_eval:
+                    ER, F, LE, LR, seld_scr, LE_no_penalty, seld_scr_no_penalty, classwise_results = eval.compute_seld_scores()
+                    leave_one_out_est = [ER, F, LE, LR, seld_scr, LE_no_penalty, seld_scr_no_penalty]
+                else:
+                    ER, F, LE, LR, seld_scr, classwise_results = eval.compute_seld_scores()
+                    leave_one_out_est = [ER, F, LE, LR, seld_scr]
+
                 if len(classwise_results):
                     leave_one_out_est.extend(classwise_results.reshape(-1).tolist())
 
@@ -144,10 +157,20 @@ class ComputeSELDResults(object):
                            partial_estimates=partial_estimates[:, i],
                            significance_level=0.05
                            )
-            return [ER, conf_interval[0]], [F, conf_interval[1]], [LE, conf_interval[2]], [LR, conf_interval[3]], [seld_scr, conf_interval[4]], [classwise_results, np.array(conf_interval)[5:].reshape(5,13,2) if len(classwise_results) else []]
+#                if i<5:
+#                    print(i, estimate[i], bias[i], std_err[i], conf_interval[i])
+            if self._dcase22_eval:
+                #return [ER, conf_interval[0]], [F, conf_interval[1]], [LE, conf_interval[2]], [LR, conf_interval[3]], [seld_scr, conf_interval[4]], [LE_no_penalty, conf_interval[5]], [seld_scr_no_penalty, conf_interval[6]], [classwise_results, np.array(conf_interval)[7:].reshape(7,self._feat_cls.get_nb_classes(),2) if len(classwise_results) else []]
+                return [global_values[0], conf_interval[0]], [global_values[1], conf_interval[1]], [global_values[2], conf_interval[2]], [global_values[3], conf_interval[3]], [global_values[4], conf_interval[4]], [global_values[5], conf_interval[5]], [global_values[6], conf_interval[6]], [global_classwise_results, np.array(conf_interval)[7:].reshape(7,self._feat_cls.get_nb_classes(),2) if len(global_classwise_results) else []]
+            else:
+                #return [ER, conf_interval[0]], [F, conf_interval[1]], [LE, conf_interval[2]], [LR, conf_interval[3]], [seld_scr, conf_interval[4]], [classwise_results, np.array(conf_interval)[5:].reshape(5,self._feat_cls.get_nb_classes(),2) if len(classwise_results) else []]
+                return [global_values[0], conf_interval[0]], [global_values[1], conf_interval[1]], [global_values[2], conf_interval[2]], [global_values[3], conf_interval[3]], [global_values[4], conf_interval[4]], [global_classwise_results, np.array(conf_interval)[5:].reshape(5,self._feat_cls.get_nb_classes(),2) if len(global_classwise_results) else []]
       
-        else:      
-            return ER, F, LE, LR, seld_scr, classwise_results
+        else:     
+            if self._dcase22_eval: 
+                return ER, F, LE, LR, seld_scr,LE_no_penalty, seld_scr_no_penalty, classwise_results
+            else:
+                return ER, F, LE, LR, seld_scr, classwise_results
 
     def get_consolidated_SELD_results(self, pred_files_path, score_type_list=['all', 'room']):
         '''
@@ -200,13 +223,14 @@ def reshape_3Dto2D(A):
 
 
 if __name__ == "__main__":
-    pred_output_format_files = 'results/3_11553814_dev_split0_multiaccdoa_foa_20220429142557_test' # Path of the DCASEoutput format files
+    pred_output_format_files = 'results/2_11969842_dev_split0_accdoa_foa_20220603061107_val' # Path of the DCASEoutput format files
     params = parameters.get_params()
     # Compute just the DCASE final results 
     score_obj = ComputeSELDResults(params)
-    use_jackknife=False
+    use_jackknife=True
     ER, F, LE, LR, seld_scr, classwise_test_scr = score_obj.get_SELD_Results(pred_output_format_files,is_jackknife=use_jackknife )
-   
+    
+    print('DCASE_EVAL: {},  JACKKNIFE: {}'.format('False', use_jackknife)) 
     print('SELD score (early stopping metric): {:0.2f} {}'.format(seld_scr[0] if use_jackknife else seld_scr, '[{:0.2f}, {:0.2f}]'.format(seld_scr[1][0], seld_scr[1][1]) if use_jackknife else ''))
     print('SED metrics: Error rate: {:0.2f} {}, F-score: {:0.1f} {}'.format(ER[0]  if use_jackknife else ER, '[{:0.2f},  {:0.2f}]'.format(ER[1][0], ER[1][1]) if use_jackknife else '', 100*F[0]  if use_jackknife else 100*F, '[{:0.2f}, {:0.2f}]'.format(100*F[1][0], 100*F[1][1]) if use_jackknife else ''))
     print('DOA metrics: Localization error: {:0.1f} {}, Localization Recall: {:0.1f} {}'.format(LE[0] if use_jackknife else LE, '[{:0.2f}, {:0.2f}]'.format(LE[1][0], LE[1][1]) if use_jackknife else '', 100*LR[0]  if use_jackknife else 100*LR,'[{:0.2f}, {:0.2f}]'.format(100*LR[1][0], 100*LR[1][1]) if use_jackknife else ''))
@@ -217,11 +241,40 @@ if __name__ == "__main__":
             print('{}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}'.format(
 cls_cnt, 
 classwise_test_scr[0][0][cls_cnt] if use_jackknife else classwise_test_scr[0][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][0][cls_cnt][0], classwise_test_scr[1][0][cls_cnt][1]) if use_jackknife else '', 
-classwise_test_scr[0][1][cls_cnt] if use_jackknife else classwise_test_scr[1][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][1][cls_cnt][0], classwise_test_scr[1][1][cls_cnt][1]) if use_jackknife else '', 
+100*classwise_test_scr[0][1][cls_cnt] if use_jackknife else 100*classwise_test_scr[1][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(100*classwise_test_scr[1][1][cls_cnt][0], 100*classwise_test_scr[1][1][cls_cnt][1]) if use_jackknife else '', 
 classwise_test_scr[0][2][cls_cnt] if use_jackknife else classwise_test_scr[2][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][2][cls_cnt][0], classwise_test_scr[1][2][cls_cnt][1]) if use_jackknife else '', 
-classwise_test_scr[0][3][cls_cnt] if use_jackknife else classwise_test_scr[3][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][3][cls_cnt][0], classwise_test_scr[1][3][cls_cnt][1]) if use_jackknife else '', 
+100*classwise_test_scr[0][3][cls_cnt] if use_jackknife else 100*classwise_test_scr[3][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(100*classwise_test_scr[1][3][cls_cnt][0], 100*classwise_test_scr[1][3][cls_cnt][1]) if use_jackknife else '', 
 classwise_test_scr[0][4][cls_cnt] if use_jackknife else classwise_test_scr[4][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][4][cls_cnt][0], classwise_test_scr[1][4][cls_cnt][1]) if use_jackknife else ''))
 
+
+    # Compute just the DCASE final results 
+    score_obj = ComputeSELDResults(params, dcase22_eval=True)
+    use_jackknife=True
+    ER, F, LE, LR, seld_scr, LE_no_penalty, seld_scr_no_penalty, classwise_test_scr = score_obj.get_SELD_Results(pred_output_format_files,is_jackknife=use_jackknife )
+    print() 
+    print('DCASE_EVAL: {},  JACKKNIFE: {}'.format('True', use_jackknife)) 
+    print('SELD score (early stopping metric): {:0.2f} {}'.format(seld_scr[0] if use_jackknife else seld_scr, '[{:0.2f}, {:0.2f}]'.format(seld_scr[1][0], seld_scr[1][1]) if use_jackknife else ''))
+    print('SED metrics: Error rate: {:0.2f} {}, F-score: {:0.1f} {}'.format(ER[0]  if use_jackknife else ER, '[{:0.2f},  {:0.2f}]'.format(ER[1][0], ER[1][1]) if use_jackknife else '', 100*F[0]  if use_jackknife else 100*F, '[{:0.2f}, {:0.2f}]'.format(100*F[1][0], 100*F[1][1]) if use_jackknife else ''))
+    print('DOA metrics: Localization error: {:0.1f} {}, Localization Recall: {:0.1f} {}'.format(LE[0] if use_jackknife else LE, '[{:0.2f}, {:0.2f}]'.format(LE[1][0], LE[1][1]) if use_jackknife else '', 100*LR[0]  if use_jackknife else 100*LR,'[{:0.2f}, {:0.2f}]'.format(100*LR[1][0], 100*LR[1][1]) if use_jackknife else ''))
+    print()
+    print('SELD score NO PENALTY: (early stopping metric): {:0.2f} {}'.format(seld_scr_no_penalty[0] if use_jackknife else seld_scr_no_penalty, '[{:0.2f}, {:0.2f}]'.format(seld_scr_no_penalty[1][0], seld_scr_no_penalty[1][1]) if use_jackknife else ''))
+    print('SED metrics: Error rate: {:0.2f} {}, F-score: {:0.1f} {}'.format(ER[0]  if use_jackknife else ER, '[{:0.2f},  {:0.2f}]'.format(ER[1][0], ER[1][1]) if use_jackknife else '', 100*F[0]  if use_jackknife else 100*F, '[{:0.2f}, {:0.2f}]'.format(100*F[1][0], 100*F[1][1]) if use_jackknife else ''))
+    print('DOA metrics: Localization error NO PENALTY: {:0.1f} {}, Localization Recall: {:0.1f} {}'.format(LE_no_penalty[0] if use_jackknife else LE_no_penalty, '[{:0.2f}, {:0.2f}]'.format(LE_no_penalty[1][0], LE_no_penalty[1][1]) if use_jackknife else '', 100*LR[0]  if use_jackknife else 100*LR,'[{:0.2f}, {:0.2f}]'.format(100*LR[1][0], 100*LR[1][1]) if use_jackknife else ''))
+    if params['average']=='macro':
+        print('Classwise results on unseen test data')
+        print('Class\tER\tF\tLE\tLR\tSELD_score\tLE_no_penalty\tSELD_score_no_penalty')
+        for cls_cnt in range(params['unique_classes']):
+            print('{}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}\t{:0.2f} {}'.format(
+cls_cnt, 
+classwise_test_scr[0][0][cls_cnt] if use_jackknife else classwise_test_scr[0][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][0][cls_cnt][0], classwise_test_scr[1][0][cls_cnt][1]) if use_jackknife else '', 
+100*classwise_test_scr[0][1][cls_cnt] if use_jackknife else 100*classwise_test_scr[1][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(100*classwise_test_scr[1][1][cls_cnt][0], 100*classwise_test_scr[1][1][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][2][cls_cnt] if use_jackknife else classwise_test_scr[2][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][2][cls_cnt][0], classwise_test_scr[1][2][cls_cnt][1]) if use_jackknife else '', 
+100*classwise_test_scr[0][3][cls_cnt] if use_jackknife else 100*classwise_test_scr[3][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(100*classwise_test_scr[1][3][cls_cnt][0], 100*classwise_test_scr[1][3][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][4][cls_cnt] if use_jackknife else classwise_test_scr[4][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][4][cls_cnt][0], classwise_test_scr[1][4][cls_cnt][1]) if use_jackknife else '',
+classwise_test_scr[0][5][cls_cnt] if use_jackknife else classwise_test_scr[5][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][5][cls_cnt][0], classwise_test_scr[1][5][cls_cnt][1]) if use_jackknife else '', 
+classwise_test_scr[0][6][cls_cnt] if use_jackknife else classwise_test_scr[6][cls_cnt], '[{:0.2f}, {:0.2f}]'.format(classwise_test_scr[1][6][cls_cnt][0], classwise_test_scr[1][6][cls_cnt][1]) if use_jackknife else '',
+
+))
 
     # UNCOMMENT to Compute DCASE results along with room-wise performance
     # score_obj.get_consolidated_SELD_results(pred_output_format_files)
